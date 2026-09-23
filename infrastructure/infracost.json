@@ -1,0 +1,135 @@
+{
+  "projects": 1,
+  "projects_with_errors": 0,
+  "project_details": [
+    {
+      "name": "plan.json",
+      "path": "plan.json",
+      "resources": 1,
+      "monthly_cost": "31.168",
+      "finops_policies": 4,
+      "finops_failing_policies": 2,
+      "tagging_policies": 1,
+      "tagging_failing_policies": 1,
+      "has_errors": false
+    }
+  ],
+  "resources": 1,
+  "costed_resources": 1,
+  "free_resources": 0,
+  "monthly_cost": "31.168",
+  "finops_policies": 4,
+  "failing_policies": 2,
+  "distinct_failing_finops_resources": 1,
+  "tagging_policies": 1,
+  "failing_tagging_policies": 1,
+  "distinct_failing_tagging_resources": 2,
+  "guardrails": 0,
+  "triggered_guardrails": 0,
+  "budgets": 0,
+  "over_budget": 0,
+  "critical_diagnostics": 0,
+  "warning_diagnostics": 0,
+  "currency": "USD",
+  "total_yearly_savings": "70.08",
+  "failing_policy_list": [
+    {
+      "kind": "finops",
+      "name": "[EC2.9, EC2.25] Amazon EC2 and launch templates should not associate a public IPv4 address",
+      "slug": "aws-ec2-disable-associate-public-ipv4",
+      "message": "EC2 instances and launch templates should not have a public IPv4 address to reduce attack surface and prevent direct internet exposure. Use NAT gateways for outbound connectivity and AWS Systems Manager Session Manager for secure instance access. Corresponds to AWS Security Hub control EC2.9 and EC2.25.",
+      "project": "plan.json",
+      "failing_finops": [
+        {
+          "name": "aws_instance.cloudops_demo",
+          "issues": [
+            {
+              "description": "Consider disabling `associate_public_ip_address`. Set it to `false` and use NAT gateways for outbound connectivity.",
+              "yearly_savings": "0",
+              "monthly_carbon_savings_grams_co2e": "0",
+              "monthly_water_savings_liters": "0",
+              "address": "aws_instance.cloudops_demo",
+              "attribute": "associate_public_ip_address"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "finops",
+      "name": "EC2 - consider using Graviton instances",
+      "slug": "aws-use-graviton-ec2-instance",
+      "message": "Graviton instances are around 20% cheaper than equivalent x86 instances.",
+      "project": "plan.json",
+      "failing_finops": [
+        {
+          "name": "aws_instance.cloudops_demo",
+          "issues": [
+            {
+              "description": "Switch `instance_type` from `t3.medium` to `t4g.medium`",
+              "yearly_savings": "70.08",
+              "monthly_carbon_savings_grams_co2e": "168.8024114",
+              "monthly_water_savings_liters": "2.5076376000000002",
+              "address": "aws_instance.cloudops_demo",
+              "attribute": "instance_type"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "tagging",
+      "name": "FinOps tags",
+      "message": "This example Tagging policy shows how you can enforce required FinOps tag keys/values in pull requests. This example checks for the tags 'Service' (can have any value) and 'Environment' (must be Dev/Stage/Prod) on all taggable resources being changed in the pull request. You can adjust it from https://dashboard.infracost.io \u003e Governance \u003e Tagging policies. You have a 14 day trial of this feature as it's part of Infracost Cloud.",
+      "project": "plan.json",
+      "tag_schema": [
+        {
+          "key": "Environment",
+          "valid_values": [
+            "Dev"
+          ]
+        },
+        {
+          "key": "Service",
+          "mandatory": true
+        }
+      ],
+      "failing_tagging": [
+        {
+          "address": "aws_instance.cloudops_demo",
+          "resource_type": "aws_instance",
+          "invalid_tags": [
+            {
+              "key": "Environment",
+              "value": "development",
+              "suggestion": "Dev"
+            }
+          ],
+          "path": "",
+          "line": 0,
+          "missing_mandatory_tags": [
+            "Service"
+          ],
+          "propagation_problems": []
+        },
+        {
+          "address": "aws_instance.cloudops_demo.root_block_device",
+          "resource_type": "aws_instance",
+          "invalid_tags": [
+            {
+              "key": "Environment",
+              "value": "development",
+              "suggestion": "Dev"
+            }
+          ],
+          "path": "",
+          "line": 0,
+          "missing_mandatory_tags": [
+            "Service"
+          ],
+          "propagation_problems": []
+        }
+      ]
+    }
+  ]
+}

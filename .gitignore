@@ -1,0 +1,33 @@
+.env
+.env.*
+*.env
+!.env.example
+/.impeccable/
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Frontend
+node_modules/
+frontend/dist/
+npm-debug.log*
+
+# Terraform and generated plans
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfstate
+terraform.tfstate.*
+tfplan
+*.tfplan
+plan.json
+
+# Local tooling
+.vscode/
+.DS_Store

@@ -1,0 +1,99 @@
+/* CloudOps AI design tokens. Single source of truth for color, type, space, radius, elevation. */
+
+:root {
+  /* ---- Legacy tokens ---- */
+  --ink: #102a43;
+  --muted: #5b7083;
+  --line: #d9e5f0;
+  --panel: #fff;
+  --navy: #0b2e4f;
+  --blue: #1769aa;
+  --soft-blue: #eaf4fb;
+  --sidebar: 252px;
+
+  /* ---- Surfaces ---- */
+  --bg: #f5f9fc;
+  --surface: #fff;
+  --surface-2: #f4f8fb;
+  --surface-3: #f8fbfd;
+
+  /* ---- Text ---- */
+  --text: #102a43;
+  --text-strong: #0b2239;
+  --text-muted: #5b7083;
+  --text-soft: #7890a3;
+  --text-faint: #91a5b5;
+
+  /* ---- Borders ---- */
+  --border: #d9e5f0;
+  --border-strong: #c5d7e6;
+
+  /* ---- Brand ---- */
+  --brand: #1769aa;
+  --brand-strong: #0e4f86;
+  --brand-soft: #eaf4fb;
+  --brand-ring: rgba(23, 105, 170, 0.18);
+
+  /* ---- Navigation (blue + white) ---- */
+  --nav-bg: #ffffff;
+  --nav-bg-hover: #f1f6fa;
+  --nav-bg-active: #eaf4fb;
+  --nav-accent: #1769aa;
+  --nav-text: #45647d;
+  --nav-text-strong: #102a43;
+  --nav-label: #7890a3;
+  --nav-divider: #d9e5f0;
+
+  /* ---- Status ---- */
+  --ok: #1769aa;
+  --ok-soft: #e8f2fa;
+  --warn: #456b8a;
+  --warn-soft: #edf4f9;
+  --warn-border: #c8dceb;
+  --danger: #315a7d;
+  --danger-soft: #e8f0f7;
+  --info: #2b6f9f;
+  --info-soft: #eaf4fb;
+  --neutral: #5b7083;
+  --neutral-soft: #edf3f7;
+
+  /* ---- Spacing scale ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  /* ---- Radius ---- */
+  --radius-xs: 4px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ---- Elevation ---- */
+  --shadow-xs: 0 1px 2px rgba(16, 42, 67, 0.05);
+  --shadow-sm: 0 2px 8px rgba(16, 42, 67, 0.06);
+  --shadow-md: 0 8px 24px rgba(11, 46, 79, 0.12);
+
+  /* ---- Typography ---- */
+  --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk', var(--font-sans);
+  --font-mono: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-base: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --text-2xl: 29px;
+
+  /* ---- Layout ---- */
+  --sidebar-width: 252px;
+  --topbar-height: 72px;
+  --content-max: 1480px;
+}
