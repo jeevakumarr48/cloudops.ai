@@ -1,0 +1,5 @@
+# Points Vercel's FastAPI runtime at the existing application without moving
+# or duplicating any backend code. Dependencies are installed from
+# requirements.txt.
+[tool.vercel]
+entrypoint = "main:app"
