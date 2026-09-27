@@ -145,9 +145,7 @@
   background: var(--line);
 }
 
-.connected {
-  color: var(--warn);
-}
+/* Connection status color comes from the StatusPill tone. */
 
 .region-label {
   margin-left: 10px;
