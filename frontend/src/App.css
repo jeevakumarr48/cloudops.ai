@@ -46,7 +46,7 @@
   place-items: center;
   width: 31px;
   height: 31px;
-  background: var(--blue);
+  background: var(--accent);
   color: #fff;
   border-radius: 7px;
 }
@@ -88,7 +88,7 @@
 .nav-item.active {
   color: var(--blue);
   background: var(--nav-bg-active);
-  box-shadow: inset 3px 0 var(--blue);
+  box-shadow: inset 3px 0 var(--accent);
 }
 
 .sidebar-footer {
@@ -232,9 +232,9 @@
 }
 
 .data-badge.is-live {
-  color: #226b50;
-  background: #edf8f2;
-  border-color: #c4e5d3;
+  color: var(--ok);
+  background: var(--ok-soft);
+  border-color: var(--ok-border);
 }
 
 .heading-actions {
@@ -707,8 +707,8 @@ tbody td {
 }
 
 .state-label.running {
-  color: #226b50;
-  background: #edf8f2;
+  color: var(--ok);
+  background: var(--ok-soft);
 }
 
 .cost-total {
@@ -794,9 +794,9 @@ tbody td {
   flex: 0 0 auto;
 }
 
-.severity-dot.high { background: #b45252; }
-.severity-dot.medium { background: #b47b2d; }
-.severity-dot.low { background: var(--blue); }
+.severity-dot.high { background: var(--danger); }
+.severity-dot.medium { background: var(--warn); }
+.severity-dot.low { background: var(--info); }
 
 .insights-page,
 .settings-page {

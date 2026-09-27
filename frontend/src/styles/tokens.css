@@ -1,61 +1,70 @@
-/* CloudOps AI design tokens. Single source of truth for color, type, space, radius, elevation. */
+/* CloudOps AI design tokens. Single source of truth for color, type, space, radius, elevation.
+   Theme: AWS / enterprise cloud-management palette. */
 
 :root {
   /* ---- Legacy tokens ---- */
-  --ink: #102a43;
-  --muted: #5b7083;
-  --line: #d9e5f0;
-  --panel: #fff;
+  --ink: #16191f;
+  --muted: #5f6b7a;
+  --line: #e9ebed;
+  --panel: #ffffff;
   --navy: #0b2e4f;
-  --blue: #1769aa;
-  --soft-blue: #eaf4fb;
+  --blue: #0972d3;
+  --soft-blue: #e8f3fc;
   --sidebar: 252px;
 
   /* ---- Surfaces ---- */
-  --bg: #f5f9fc;
-  --surface: #fff;
-  --surface-2: #f4f8fb;
-  --surface-3: #f8fbfd;
+  --bg: #f7f8f9;
+  --surface: #ffffff;
+  --surface-2: #f4f6f8;
+  --surface-3: #fafbfc;
 
   /* ---- Text ---- */
-  --text: #102a43;
-  --text-strong: #0b2239;
-  --text-muted: #5b7083;
-  --text-soft: #7890a3;
-  --text-faint: #91a5b5;
+  --text: #16191f;
+  --text-strong: #0f1419;
+  --text-muted: #5f6b7a;
+  --text-soft: #7a8794;
+  --text-faint: #98a3af;
 
   /* ---- Borders ---- */
-  --border: #d9e5f0;
-  --border-strong: #c5d7e6;
+  --border: #e9ebed;
+  --border-strong: #d5dae0;
 
-  /* ---- Brand ---- */
-  --brand: #1769aa;
-  --brand-strong: #0e4f86;
-  --brand-soft: #eaf4fb;
-  --brand-ring: rgba(23, 105, 170, 0.18);
+  /* ---- Brand (professional blue) ---- */
+  --brand: #0972d3;
+  --brand-strong: #0660b0;
+  --brand-soft: #e8f3fc;
+  --brand-ring: rgba(9, 114, 211, 0.18);
 
-  /* ---- Navigation (blue + white) ---- */
+  /* ---- Accent (AWS-inspired orange, used sparingly) ---- */
+  --accent: #ec7211;
+  --accent-strong: #d65d00;
+  --accent-soft: #fdf2e7;
+
+  /* ---- Navigation ---- */
   --nav-bg: #ffffff;
-  --nav-bg-hover: #f1f6fa;
-  --nav-bg-active: #eaf4fb;
-  --nav-accent: #1769aa;
-  --nav-text: #45647d;
-  --nav-text-strong: #102a43;
-  --nav-label: #7890a3;
-  --nav-divider: #d9e5f0;
+  --nav-bg-hover: #f4f6f8;
+  --nav-bg-active: #e8f3fc;
+  --nav-accent: #0972d3;
+  --nav-text: #414d5c;
+  --nav-text-strong: #16191f;
+  --nav-label: #7a8794;
+  --nav-divider: #e9ebed;
 
   /* ---- Status ---- */
-  --ok: #1769aa;
-  --ok-soft: #e8f2fa;
-  --warn: #456b8a;
-  --warn-soft: #edf4f9;
-  --warn-border: #c8dceb;
-  --danger: #315a7d;
-  --danger-soft: #e8f0f7;
-  --info: #2b6f9f;
-  --info-soft: #eaf4fb;
-  --neutral: #5b7083;
-  --neutral-soft: #edf3f7;
+  --ok: #067647;
+  --ok-soft: #ecfdf3;
+  --ok-border: #abefc6;
+  --warn: #b54708;
+  --warn-soft: #fffaeb;
+  --warn-border: #fedf89;
+  --danger: #b42318;
+  --danger-soft: #fef3f2;
+  --danger-border: #fecdca;
+  --info: #0972d3;
+  --info-soft: #e8f3fc;
+  --info-border: #b6dcf5;
+  --neutral: #5f6b7a;
+  --neutral-soft: #eef1f4;
 
   /* ---- Spacing scale ---- */
   --space-1: 4px;
@@ -75,8 +84,8 @@
   --radius-pill: 999px;
 
   /* ---- Elevation ---- */
-  --shadow-xs: 0 1px 2px rgba(16, 42, 67, 0.05);
-  --shadow-sm: 0 2px 8px rgba(16, 42, 67, 0.06);
+  --shadow-xs: 0 1px 2px rgba(16, 25, 31, 0.05);
+  --shadow-sm: 0 2px 8px rgba(16, 25, 31, 0.06);
   --shadow-md: 0 8px 24px rgba(11, 46, 79, 0.12);
 
   /* ---- Typography ---- */
