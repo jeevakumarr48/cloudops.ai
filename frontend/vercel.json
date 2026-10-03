@@ -3,5 +3,9 @@
   "framework": "vite",
   "installCommand": "npm install",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://cloudops-ai-api.vercel.app/api/:path*" },
+    { "source": "/health", "destination": "https://cloudops-ai-api.vercel.app/health" }
+  ]
 }
