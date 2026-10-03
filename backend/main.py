@@ -16,7 +16,11 @@ from fastapi.responses import JSONResponse
 from aws_client import AWSAccessError, discover_ec2_instances
 from services.ai_explainer import explain_findings
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
-from services.cost_service import CostServiceError, get_cost_summary
+from services.cost_service import (
+    CostServiceError,
+    get_cost_forecast,
+    get_cost_summary,
+)
 from services.decision_engine import (
     analyze_ec2_resources,
     analyze_iac_changes,
@@ -164,6 +168,14 @@ def get_ec2_metrics_endpoint(hours: int = 24, region: Optional[str] = None):
 def get_costs(period: str = "monthly", group_by_service: bool = True):
     try:
         return get_cost_summary(period=period, group_by_service=group_by_service)
+    except CostServiceError as error:
+        return _unavailable(error)
+
+
+@app.get("/api/costs/forecast")
+def get_costs_forecast(period: str = "monthly"):
+    try:
+        return get_cost_forecast(period=period)
     except CostServiceError as error:
         return _unavailable(error)
 
