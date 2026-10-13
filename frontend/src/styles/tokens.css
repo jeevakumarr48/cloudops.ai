@@ -1,108 +1,87 @@
-/* CloudOps AI design tokens. Single source of truth for color, type, space, radius, elevation.
-   Theme: AWS / enterprise cloud-management palette. */
+/* CloudOps AI design tokens. The operations console world: soft sage surfaces
+   over a warm near-white ground, one deep-teal data accent, comfortable
+   density. Values mirror the shadcn theme in index.css — keep the two in step.
+   (see DESIGN.md) */
 
 :root {
-  /* ---- Legacy tokens ---- */
-  --ink: #16191f;
-  --muted: #5f6b7a;
-  --line: #e9ebed;
-  --panel: #ffffff;
-  --navy: #0b2e4f;
-  --blue: #0972d3;
-  --soft-blue: #e8f3fc;
-  --sidebar: 252px;
+  color-scheme: light;
 
-  /* ---- Surfaces ---- */
-  --bg: #f7f8f9;
-  --surface: #ffffff;
-  --surface-2: #f4f6f8;
-  --surface-3: #fafbfc;
+  /* ---- Ground and surfaces ---- */
+  --ground: #f4f6f1;        /* page behind the cards */
+  --surface: #fafbf8;       /* cards, header */
+  --surface-2: #e9eee7;     /* sidebar, secondary surface */
 
-  /* ---- Text ---- */
-  --text: #16191f;
-  --text-strong: #0f1419;
-  --text-muted: #5f6b7a;
-  --text-soft: #7a8794;
-  --text-faint: #98a3af;
+  /* ---- Ink ---- */
+  --ink: #171a18;           /* headings and values */
+  --ink-2: #535d57;         /* body copy */
+  --ink-3: #535d57;         /* secondary text, table body */
+  --text-muted: #626c65;    /* captions, notes, empty descriptors (AA on every surface) */
 
-  /* ---- Borders ---- */
-  --border: #e9ebed;
-  --border-strong: #d5dae0;
+  /* ---- Lines ---- */
+  --line: #e0e5de;          /* card borders, hairlines */
+  --line-strong: #c8d0c9;   /* control borders */
 
-  /* ---- Brand (professional blue) ---- */
-  --brand: #0972d3;
-  --brand-strong: #0660b0;
-  --brand-soft: #e8f3fc;
-  --brand-ring: rgba(9, 114, 211, 0.18);
-
-  /* ---- Accent (AWS-inspired orange, used sparingly) ---- */
-  --accent: #ec7211;
-  --accent-strong: #d65d00;
-  --accent-soft: #fdf2e7;
-
-  /* ---- Navigation ---- */
-  --nav-bg: #ffffff;
-  --nav-bg-hover: #f4f6f8;
-  --nav-bg-active: #e8f3fc;
-  --nav-accent: #0972d3;
-  --nav-text: #414d5c;
-  --nav-text-strong: #16191f;
-  --nav-label: #7a8794;
-  --nav-divider: #e9ebed;
+  /* ---- The one data accent (intelligence green) ---- */
+  --brand: #52796f;
+  --brand-strong: #354f52;
+  --brand-soft: #dce5dc;    /* selected surface */
+  --brand-line: #cad2c5;
 
   /* ---- Status ---- */
-  --ok: #067647;
-  --ok-soft: #ecfdf3;
-  --ok-border: #abefc6;
-  --warn: #b54708;
-  --warn-soft: #fffaeb;
-  --warn-border: #fedf89;
+  --ok: #247346;            /* connected, running, reported savings */
+  --ok-soft: #e6f4ea;
+  --ok-line: #b7dfc4;
+  --warn: #956000;
+  --warn-soft: #fff3d6;
+  --warn-line: #f0dca8;
   --danger: #b42318;
-  --danger-soft: #fef3f2;
-  --danger-border: #fecdca;
-  --info: #0972d3;
-  --info-soft: #e8f3fc;
-  --info-border: #b6dcf5;
-  --neutral: #5f6b7a;
-  --neutral-soft: #eef1f4;
+  --danger-soft: #fce8e8;
+  --danger-line: #f3c6c6;
 
-  /* ---- Spacing scale ---- */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-7: 32px;
-  --space-8: 40px;
+  /* ---- Fonts ---- */
+  --font-mono: 'JetBrains Mono', 'JetBrains Mono Fallback', ui-monospace, 'SF Mono', Menlo, Consolas, 'Cascadia Mono', 'Liberation Mono', monospace;
 
-  /* ---- Radius ---- */
-  --radius-xs: 4px;
-  --radius-sm: 5px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-pill: 999px;
+  /* ---- Type scale ---- */
+  --t-page: 28px;           /* the sheet title */
+  --t-card: 15px;           /* card titles, 600 */
+  --t-body: 13px;
+  --t-meta: 12px;
+  --t-kpi: 30px;            /* register values, 600 tabular */
+  --t-table: 13px;
 
-  /* ---- Elevation ---- */
-  --shadow-xs: 0 1px 2px rgba(16, 25, 31, 0.05);
-  --shadow-sm: 0 2px 8px rgba(16, 25, 31, 0.06);
-  --shadow-md: 0 8px 24px rgba(11, 46, 79, 0.12);
+  --lh-body: 1.5;
+  --track-page: -0.02em;
 
-  /* ---- Typography ---- */
-  --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Space Grotesk', var(--font-sans);
-  --font-mono: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  /* ---- Spacing ---- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s7: 32px;
+  --s8: 40px;
+  --s9: 56px;
 
-  --text-xs: 10px;
-  --text-sm: 11px;
-  --text-base: 12px;
-  --text-md: 13px;
-  --text-lg: 15px;
-  --text-xl: 17px;
-  --text-2xl: 29px;
+  /* ---- Radius family ---- */
+  --r-sm: 8px;              /* controls, chips */
+  --r-md: 10px;             /* cards */
+  --r-lg: 12px;             /* panels, chart frames */
+  --r-pill: 999px;
+
+  /* ---- Elevation: flat cards, one float ---- */
+  --shadow-card: 0 1px 2px rgba(47, 62, 70, 0.05);
+  --shadow-toast: 0 10px 30px rgba(47, 62, 70, 0.16);
 
   /* ---- Layout ---- */
-  --sidebar-width: 252px;
-  --topbar-height: 72px;
-  --content-max: 1480px;
+  --rail: 248px;
+  --titleblock: 64px;
+  --content-max: 1440px;
+  --content-pad: 32px;
+  --drawer: 860px;
+  --row: 48px;
+}
+
+@media (max-width: 860px) {
+  :root { --content-pad: 20px; }
 }

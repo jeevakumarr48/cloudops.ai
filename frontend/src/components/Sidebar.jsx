@@ -1,41 +1,76 @@
-import { BarChart3, Bot, Boxes, Cloud, Cog, FileCode2, LayoutDashboard, ShieldCheck, X } from 'lucide-react'
-import StatusPill from './ui/StatusPill'
+import { BarChart3, Bot, Boxes, Cloud, Cog, FileCode2, LayoutDashboard, ShieldCheck } from 'lucide-react'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from '@/components/ui/sidebar'
 
-const navigation = [
-  ['Overview', LayoutDashboard],
-  ['Resources', Boxes],
-  ['Cost Analysis', BarChart3],
-  ['AI Insights', Bot],
-  ['IaC Review', FileCode2],
-  ['Governance', ShieldCheck],
-  ['Settings', Cog],
+const groups = [
+  { label: 'Monitor', items: [['Overview', LayoutDashboard], ['Resources', Boxes], ['Cost Analysis', BarChart3], ['AI Insights', Bot]] },
+  { label: 'Govern', items: [['IaC Review', FileCode2], ['Governance', ShieldCheck]] },
 ]
 
-function Sidebar({ activePage, onNavigate, open, onClose }) {
+function AppSidebar({ activePage, onNavigate }) {
   return (
-    <aside className={`sidebar ${open ? 'is-open' : ''}`}>
-      <div className="brand-row">
-        <div className="brand-mark"><Cloud size={18} /></div>
-        <div><strong>CloudOps AI</strong><span>Cloud Intelligence Platform</span></div>
-        <button type="button" className="icon-button mobile-close" onClick={onClose} aria-label="Close navigation"><X size={18} /></button>
-      </div>
-      <nav aria-label="Primary navigation">
-        <p className="nav-label">Workspace</p>
-        {navigation.map(([label, Icon]) => (
-          <button
-            key={label}
-            type="button"
-            className={`nav-item ${activePage === label ? 'active' : ''}`}
-            onClick={() => onNavigate(label)}
-            aria-current={activePage === label ? 'page' : undefined}
-          >
-            <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
-          </button>
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" onClick={() => onNavigate('Overview')} tooltip="CloudOps AI">
+              <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                <Cloud className="size-4" />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">CloudOps AI</span>
+                <span className="text-muted-foreground truncate text-xs">Cloud Intelligence Platform</span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      <SidebarContent>
+        {groups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map(([label, Icon]) => (
+                  <SidebarMenuItem key={label}>
+                    <SidebarMenuButton isActive={activePage === label} onClick={() => onNavigate(label)} tooltip={label}>
+                      <Icon />
+                      <span>{label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         ))}
-      </nav>
-      <div className="sidebar-footer"><StatusPill tone="warn">Backend data connection pending</StatusPill></div>
-    </aside>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton isActive={activePage === 'Settings'} onClick={() => onNavigate('Settings')} tooltip="Settings">
+              <Cog />
+              <span>Settings</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+
+      <SidebarRail />
+    </Sidebar>
   )
 }
 
-export default Sidebar
+export default AppSidebar

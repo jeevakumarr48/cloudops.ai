@@ -1,10 +1,169 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import 'tailwindcss';
 @import './styles/tokens.css';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
 
-:root { font-family: var(--font-sans); color: var(--text); background: var(--bg); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+@custom-variant dark (&:is(.dark *));
+
+/* Interface face: Inter (via @fontsource-variable/inter). The metric-matched
+   fallback keeps the first paint on Windows and Linux from reflowing. */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('Liberation Sans'), local('Arimo'), local('Helvetica');
+  size-adjust: 107.14%;
+  ascent-override: 90.2%;
+  descent-override: 22.48%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'JetBrains Mono Fallback';
+  src: local('Consolas'), local('Menlo'), local('Cascadia Mono'), local('Liberation Mono'), local('DejaVu Sans Mono'), local('Courier New');
+  size-adjust: 100%;
+  ascent-override: 92%;
+  descent-override: 22%;
+  line-gap-override: 0%;
+}
+
+:root {
+  --font-mono: 'JetBrains Mono', 'JetBrains Mono Fallback', ui-monospace, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background: var(--ground);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* ---- shadcn theme: the sage system, light only ---- */
+  --background: #f4f6f1;
+  --foreground: #171a18;
+  --card: #fafbf8;
+  --card-foreground: #171a18;
+  --popover: #fafbf8;
+  --popover-foreground: #171a18;
+  --primary: #354f52;
+  --primary-foreground: #ffffff;
+  --secondary: #eef2ee;
+  --secondary-foreground: #171a18;
+  --muted: #e9eee7;
+  --muted-foreground: #626c65;
+  --accent: #dce5dc;
+  --accent-foreground: #171a18;
+  --destructive: #b42318;
+  --destructive-foreground: #ffffff;
+  --border: #e0e5de;
+  --input: #c8d0c9;
+  --ring: #52796f;
+  --chart-1: #cad2c5;
+  --chart-2: #84a98c;
+  --chart-3: #52796f;
+  --chart-4: #354f52;
+  --chart-5: #2f3e46;
+  --radius: 0.625rem;
+  --sidebar: #e9eee7;
+  --sidebar-foreground: #171a18;
+  --sidebar-primary: #354f52;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dce5dc;
+  --sidebar-accent-foreground: #171a18;
+  --sidebar-border: #e0e5de;
+  --sidebar-ring: #52796f;
+
+  /* ---- semantic extras (no shadcn slot; see @theme) ---- */
+  --success: #247346;
+  --success-background: #e6f4ea;
+  --warning: #956000;
+  --warning-background: #fff3d6;
+  --info: #315db5;
+  --info-background: #eaf0fc;
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body { margin: 0; min-width: 320px; }
-button, input { font: inherit; }
+body { margin: 0; min-width: 320px; background: var(--ground); }
 button { cursor: pointer; }
 #root { min-height: 100vh; }
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::selection { background: var(--brand-soft); }
+
+.mono, .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Inter Variable', 'Inter Fallback', system-ui, sans-serif;
+  --font-mono: var(--font-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-success: var(--success);
+  --color-success-background: var(--success-background);
+  --color-warning: var(--warning);
+  --color-warning-background: var(--warning-background);
+  --color-info: var(--info);
+  --color-info-background: var(--info-background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
