@@ -8,3 +8,6 @@ Dockerfile text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 *.png binary
+*.tf text eol=lf
+*.tftest.hcl text eol=lf
+.terraform.lock.hcl text eol=lf

@@ -17,7 +17,9 @@ $0.0004 per 1,000). The rest are free.
 
 The backend reads credentials through `core/aws_session.py`. Choose one:
 
-1. **Vercel OIDC federation (recommended, no AWS keys anywhere).** In AWS, add
+1. **Vercel OIDC federation (recommended, no AWS keys anywhere).** The
+   Terraform in [`infra/terraform/aws`](../../infra/terraform/README.md)
+   creates all of this for you; the manual steps are: in AWS, add
    the identity provider `oidc.vercel.com/TEAM_SLUG` (team issuer mode,
    audience `https://vercel.com/TEAM_SLUG`), create a role with
    `cloudops-readonly-policy.json` attached and the trust policy in

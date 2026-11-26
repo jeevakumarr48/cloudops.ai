@@ -96,7 +96,8 @@ Endpoints that read the deployment's AWS account need a signed-in operator (`CLO
 backend/                 FastAPI application and tests
 backend/services/        AWS, cost, metrics, IaC, rules, and AI services
 frontend/                React/Vite dashboard
-infrastructure/          Terraform source and real analysis artifacts
+infrastructure/          Sample Terraform plan and Infracost artifacts the analyzer reviews
+infra/terraform/         Terraform for the app's own IAM role, OIDC trust and Vercel projects
 .github/workflows/       Read-only CI checks
 ```
 
@@ -403,9 +404,13 @@ Every push and pull request runs these in CI (`.github/workflows/cloudops-check.
 | Frontend lint | ESLint | `cd frontend && npm run lint` |
 | Unit and component tests | Vitest, Testing Library | `cd frontend && npm test` |
 | End-to-end, desktop and phone | Playwright against the real API on SQLite | `cd frontend && npm run test:e2e` |
-| Terraform formatting | terraform fmt | never plans or applies |
+| Platform infrastructure as code: format, validate, tests with mocked providers | terraform fmt / validate / test | `make tf-check` (never applies) |
 
 Install the tools with `pip install -r backend/requirements-dev.txt` and `npm ci`. The end-to-end run starts the API with fake AWS credentials and `AWS_ENDPOINT_URL` pointed at a closed local port, so no request can reach AWS. Modules that predate type checking (older discovery and rule code) are listed as type debt in `backend/pyproject.toml`.
+
+## Infrastructure as code
+
+The app's own access is managed with Terraform in [`infra/terraform`](infra/terraform/README.md): the Vercel OIDC identity provider, a read-only IAM role whose trust is pinned to the API project's production environment, and the two Vercel projects with their non-secret settings. All of it is free. A precondition fails the plan if the policy ever gains an action that is not `Describe`, `Get` or `List`. CI validates and tests it with mocked providers; only you run `apply`.
 
 ## Deployment
 

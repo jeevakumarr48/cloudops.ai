@@ -1,7 +1,8 @@
 name: CloudOps AI checks
 
 # Safe, read-only CI: no AWS credentials are required and no infrastructure
-# is deployed or changed. Terraform is only ever checked for formatting.
+# is deployed or changed. Terraform is formatted, validated and tested with
+# mocked providers; it is never planned against a real account or applied.
 
 on:
   push:
@@ -57,24 +58,33 @@ jobs:
       - name: Dependency vulnerability audit
         run: pip-audit -r backend/requirements.txt
 
-      - name: Detect Terraform files
-        id: terraform
-        run: |
-          if find infrastructure -name '*.tf' -print -quit 2>/dev/null | grep -q .; then
-            echo "present=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=0" >> "$GITHUB_OUTPUT"
-          fi
+  terraform:
+    # Validates and tests the Terraform for the app's own IAM role and Vercel
+    # projects. Both providers are mocked in `terraform test`, so no cloud
+    # credentials exist in CI and nothing can be applied.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Terraform
-        if: steps.terraform.outputs.present == '1'
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.9.8"
+          terraform_version: "1.17.2"
+          terraform_wrapper: false
 
-      - name: Terraform format check (never applies)
-        if: steps.terraform.outputs.present == '1'
-        run: terraform fmt -check -recursive infrastructure
+      - name: Format check
+        run: terraform fmt -check -recursive -diff infrastructure infra/terraform
+
+      - name: Validate and test (mocked providers, never applies)
+        run: |
+          for root in infra/terraform/aws infra/terraform/vercel; do
+            echo "::group::$root"
+            terraform -chdir="$root" init -backend=false -input=false
+            terraform -chdir="$root" validate
+            terraform -chdir="$root" test
+            echo "::endgroup::"
+          done
 
   frontend:
     runs-on: ubuntu-latest

@@ -6,7 +6,7 @@ PY = $(BIN)/python
 DB ?= sqlite:///./dev.sqlite3
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev api web up down logs test test-backend test-frontend e2e lint typecheck check eval smoke clean
+.PHONY: help install dev api web up down logs test test-backend test-frontend e2e lint typecheck check eval tf-check smoke clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -58,6 +58,13 @@ e2e: ## Playwright end-to-end tests (starts its own API and frontend)
 test: test-backend test-frontend eval ## All unit tests and the evaluation
 
 check: lint typecheck test ## Everything CI runs except e2e and audits
+
+tf-check: ## Terraform format, validate and tests (mocked providers, never applies)
+	terraform fmt -check -recursive infrastructure infra/terraform
+	@for root in infra/terraform/aws infra/terraform/vercel; do \
+		terraform -chdir=$$root init -backend=false -input=false >/dev/null && \
+		terraform -chdir=$$root validate && terraform -chdir=$$root test || exit 1; \
+	done
 
 smoke: ## Read-only smoke test against URL=... (default: local Docker stack)
 	$(PY) scripts/smoke_test.py $(or $(URL),http://localhost:8080)

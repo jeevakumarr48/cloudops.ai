@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+vercel_team_slug        = "your-team-slug"
+vercel_api_project_name = "cloudops-ai-api"
+
+# Only production deployments may assume the role.
+vercel_environments = ["production"]
+
+# Already have an oidc.vercel.com/<slug> provider in this account? Reuse it:
+# create_oidc_provider       = false
+# existing_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.vercel.com/your-team-slug"
