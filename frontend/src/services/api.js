@@ -40,10 +40,14 @@ export const getAiRecommendations = (refresh = false) => secureApi.get('/api/ai/
 export const analyzeWithAi = (body) => secureApi.post('/api/ai/analyze', body, { timeout: 300000 })
 export const sendRecommendationFeedback = (recommendationId, decision, note) => secureApi.post(`/api/ai/recommendations/${encodeURIComponent(recommendationId)}/feedback`, { decision, note: note || null })
 
+export const getSecurityStatus = () => secureApi.get('/api/security/status')
+export const getAuditLog = (params = {}) => secureApi.get('/api/security/audit', { params })
+
 // Turns an API error into a user-facing state without leaking internals.
 export function describeError(error) {
   const status = error?.response?.status
   const detail = error?.response?.data?.detail
+  if (error?.response?.data?.code === 'origin_not_allowed') return { kind: 'forbidden', message: error.response.data.error }
   if (status === 401) return { kind: 'signin', message: 'Sign in as a CloudOps AI operator to view this.' }
   if (status === 403) return { kind: 'forbidden', message: typeof detail === 'string' ? detail : 'Operator access required.' }
   if (status === 503) return { kind: 'unavailable', message: 'Accounts are not enabled on this deployment yet (no database configured).' }

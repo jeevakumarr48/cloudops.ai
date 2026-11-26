@@ -15,10 +15,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from aws_client import AWSAccessError, discover_ec2_instances
+from core import http_security
 from core.authz import require_operator
 from routers import ai as ai_router
 from routers import auth as auth_router
 from routers import governance as governance_router
+from routers import security as security_router
 from routers import workspaces as workspaces_router
 from services.ai_explainer import explain_findings
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
@@ -61,7 +63,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
+# Origin check, security headers, request ids and the error envelope.
+http_security.install(app, _cors_origins)
 
 
 # CloudWatch retains 1-hour datapoints for 455 days, but anything beyond 30
@@ -89,6 +94,7 @@ app.include_router(auth_router.router)
 app.include_router(workspaces_router.router)
 app.include_router(governance_router.router)
 app.include_router(ai_router.router)
+app.include_router(security_router.router)
 
 
 def _seconds_until_utc_midnight() -> int:

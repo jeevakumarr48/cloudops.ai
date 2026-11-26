@@ -135,6 +135,9 @@ Copy `backend/.env.example` and `frontend/.env.example` to local environment fil
 | `CLOUDOPS_COST_CDN_SECONDS` | No | Vercel CDN cache lifetime for successful cost responses, default 86400 |
 | `CLOUDOPS_INVENTORY_CDN_SECONDS` | No | Vercel CDN cache lifetime for EC2, metrics, insights and overview responses, default 60 |
 | `CLOUDOPS_DISCOVERY_CACHE_SECONDS` | No | In-process EC2 DescribeInstances cache, default 60; 0 disables |
+| `CLOUDOPS_AWS_ROLE_ARN` | No | Read-only role to use instead of stored keys (Vercel OIDC or AssumeRole); see docs/iam/README.md |
+| `CLOUDOPS_AWS_EXTERNAL_ID` | No | ExternalId for AssumeRole mode |
+| `CLOUDOPS_AWS_AUTH` | No | `auto` (default), `default`, `assume_role` or `oidc` |
 | `CLOUDOPS_AI_PROVIDER` | No | Recommendation rewrite provider: `none` (default), `ollama`, `openai_compatible` |
 | `CLOUDOPS_AI_DAILY_CALL_LIMIT` | No | Max AI provider calls per UTC day for recommendations, default 20 |
 | `CLOUDOPS_AI_CACHE_SECONDS` | No | Reuse an LLM explanation for unchanged findings, default 3600 |
@@ -301,6 +304,14 @@ The sidebar has two signed-in pages next to the original ones (which are unchang
 - **Recommendations**: a deterministic posture summary, then one card per finding showing the 12 required fields in order, the correlation note, and any validator violations. Operators can record a decision and, when an AI provider is configured, run the optional rewrite for the top 5 findings or a single card.
 
 Sign-in uses the HttpOnly session cookie, so these pages call the API on the same origin: through the `/api` rewrite in `frontend/vercel.json` in production and through the Vite dev proxy locally (`npm run dev` proxies `/api` and `/health` to `VITE_API_URL`). Pages load data when opened or refreshed; nothing polls. A governance scan is reused for 60 seconds, so the pages share one round of AWS reads.
+
+## Request security
+
+- **Origin check.** A POST, PATCH, PUT or DELETE that carries the session cookie must come from an origin in `CLOUDOPS_AI_CORS_ORIGINS` or from the API's own origin (or, with no Origin header, must not be marked cross-site by the browser). Otherwise it is refused with `403 origin_not_allowed`. This adds to SameSite=Lax cookies and the JSON-only rule. The deployed frontend origin must be listed in `CLOUDOPS_AI_CORS_ORIGINS`.
+- **Errors.** Errors raised by the API share one envelope: `{"status": "error", "error": "<message>", "code": "<code>", "request_id": "...", "detail": ...}`. `detail` keeps FastAPI's field for existing clients; the original endpoints' `{"status": "unavailable", "error": "..."}` bodies are unchanged. Unexpected errors return `internal_error` without internal details, and every response has an `X-Request-ID` header to match logs.
+- **Headers.** API responses send `nosniff`, `DENY` framing, `no-referrer`, a deny-all CSP (except the `/docs` page) and HSTS when cookies are Secure; `/api/auth` responses are `no-store`. The frontend sends `nosniff`, `DENY` framing and a strict referrer policy (`frontend/vercel.json`).
+- **Operator views.** `GET /api/security/status` shows the AWS credential mode and whether long-lived keys are in use (never key material). `GET /api/security/audit` lists the deployment's audit events. Both need a signed-in operator and appear on the console's Security page.
+- **AWS credentials.** See `docs/iam/README.md` for Vercel OIDC federation (no stored keys) and AssumeRole with ExternalId.
 
 ## Accounts, workspaces and the database
 

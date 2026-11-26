@@ -6,13 +6,14 @@ import TopBar from './components/TopBar'
 import Dashboard from './pages/Dashboard'
 import Governance from './pages/Governance'
 import Recommendations from './pages/Recommendations'
+import Security from './pages/Security'
 import useSession from './hooks/useSession'
 import './App.css'
 import './components/governance/governance.css'
 
 // Pages that use the signed-in governance API. The original pages stay in
 // Dashboard, which stays mounted so switching pages does not reload them.
-const CONSOLE_PAGES = { Governance, Recommendations }
+const CONSOLE_PAGES = { Governance, Recommendations, Security }
 
 function App() {
   const [activePage, setActivePage] = useState('Overview')

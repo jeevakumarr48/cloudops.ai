@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import boto3
+from core import aws_session
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -78,7 +78,7 @@ def clear_cache() -> None:
 
 
 def _client(service: str, region: Optional[str] = None):
-    return boto3.client(service, region_name=region, config=_BOTO_CONFIG)
+    return aws_session.client(service, region_name=region, config=_BOTO_CONFIG)
 
 
 def _check(call: Callable[[], Any], parse: Callable[[Any], Any]) -> Dict[str, Any]:

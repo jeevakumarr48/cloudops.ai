@@ -81,3 +81,4 @@
 .plain-icon-button:focus-visible { outline: 2px solid var(--brand-ring); }
 .findings-table .finding-detail, .findings-table .finding-detail * { white-space: normal; }
 .detail-grid > section { min-width: 0; overflow-wrap: anywhere; }
+.dashboard-content > .two-column + .panel { margin-top: var(--space-4); }

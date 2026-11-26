@@ -113,7 +113,8 @@ def test_wrong_password_and_unknown_email_look_the_same():
     wrong = new_client().post("/api/auth/login", json={"email": "a@example.com", "password": "wrong password!"})
     unknown = new_client().post("/api/auth/login", json={"email": "b@example.com", "password": "wrong password!"})
     assert wrong.status_code == unknown.status_code == 401
-    assert wrong.json() == unknown.json()
+    strip = lambda r: {k: v for k, v in r.json().items() if k != "request_id"}  # noqa: E731
+    assert strip(wrong) == strip(unknown)
 
 
 def test_login_is_rate_limited_per_email():

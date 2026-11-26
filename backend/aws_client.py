@@ -15,7 +15,7 @@ import os
 import threading
 import time
 
-import boto3
+from core import aws_session
 from botocore.exceptions import BotoCoreError, ClientError
 
 __all__ = [
@@ -52,7 +52,7 @@ def create_ec2_client(region_name=None):
     region the same way the existing backend does (environment/config
     defaults), so no authentication behaviour changes.
     """
-    return boto3.client(EC2_SERVICE_NAME, region_name=region_name)
+    return aws_session.client(EC2_SERVICE_NAME, region_name=region_name)
 
 
 def discover_ec2_instances(region_name=None):
@@ -101,7 +101,7 @@ def create_cloudwatch_client(region_name=None):
     Read-only usage only; this module never creates alarms or modifies
     CloudWatch state.
     """
-    return boto3.client(CLOUDWATCH_SERVICE_NAME, region_name=region_name)
+    return aws_session.client(CLOUDWATCH_SERVICE_NAME, region_name=region_name)
 
 
 def create_cost_explorer_client(region_name=COST_EXPLORER_REGION):
@@ -109,4 +109,4 @@ def create_cost_explorer_client(region_name=COST_EXPLORER_REGION):
 
     Cost Explorer is global and must be addressed via us-east-1.
     """
-    return boto3.client(COST_EXPLORER_SERVICE_NAME, region_name=region_name)
+    return aws_session.client(COST_EXPLORER_SERVICE_NAME, region_name=region_name)
