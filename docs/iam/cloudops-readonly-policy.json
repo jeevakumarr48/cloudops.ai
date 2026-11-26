@@ -6,6 +6,7 @@
       "Effect": "Allow",
       "Action": [
         "ec2:DescribeInstances",
+        "ec2:DescribeSecurityGroups",
         "cloudwatch:GetMetricData"
       ],
       "Resource": "*"
@@ -16,6 +17,14 @@
       "Action": [
         "ce:GetCostAndUsage",
         "ce:GetCostForecast"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RDSRead",
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBInstances"
       ],
       "Resource": "*"
     },

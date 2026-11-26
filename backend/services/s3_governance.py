@@ -17,8 +17,18 @@ pure functions of the discovery record; no AWS calls are made.
 
 from __future__ import annotations
 
-import hashlib
 from typing import Any, Dict, List, Optional
+
+from services.governance_common import (
+    CONFIRMED,
+    DATA_UNAVAILABLE,
+    FINDING_STATES,
+    INSUFFICIENT_EVIDENCE,
+    NO_ISSUE,
+    POTENTIAL,
+    Evaluation,
+    summarize,
+)
 
 __all__ = [
     "CONFIRMED", "POTENTIAL", "INSUFFICIENT_EVIDENCE", "NO_ISSUE", "DATA_UNAVAILABLE",
@@ -27,23 +37,11 @@ __all__ = [
     "summarize",
 ]
 
-CONFIRMED = "CONFIRMED"
-POTENTIAL = "POTENTIAL"
-INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
-NO_ISSUE = "NO_ISSUE"
-DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
-FINDING_STATES = (CONFIRMED, POTENTIAL, INSUFFICIENT_EVIDENCE)
-
 # Below 1 GiB of Standard storage a lifecycle policy changes the bill by at
 # most a few cents a month, so its absence is not reported as a finding.
 LIFECYCLE_SIZE_THRESHOLD_BYTES = 1024 ** 3
 
 _BPA_FLAGS = ("BlockPublicAcls", "IgnorePublicAcls", "BlockPublicPolicy", "RestrictPublicBuckets")
-_SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
-
-
-def _finding_id(rule_id: str, bucket: str) -> str:
-    return hashlib.sha256(("s3|%s|%s" % (rule_id, bucket)).encode("utf-8")).hexdigest()[:16]
 
 
 def _human_bytes(value: int) -> str:
@@ -55,67 +53,16 @@ def _human_bytes(value: int) -> str:
     return "%d B" % value
 
 
-class _Evaluation:
-    def __init__(self, bucket: Dict[str, Any], rule_id: str, category: str, title: str):
-        self.bucket = bucket
-        self.rule_id = rule_id
-        self.category = category
-        self.title = title
-        self.evidence: List[Dict[str, str]] = []
-
-    def cite(self, source: str, observation: str) -> "_Evaluation":
-        self.evidence.append({
-            "id": "%s-e%d" % (self.rule_id.lower(), len(self.evidence) + 1),
-            "source": source,
-            "observation": observation,
-        })
-        return self
-
-    def result(
-        self,
-        state: str,
-        severity: str = "INFO",
-        description: str = "",
-        recommendation: Optional[str] = None,
-        remediation_steps: Optional[List[str]] = None,
-        confidence: str = "high",
-        missing_information: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
-        name = self.bucket["name"]
-        return {
-            "finding_id": _finding_id(self.rule_id, name),
-            "rule_id": self.rule_id,
-            "resource_type": "S3",
-            "resource_id": name,
-            "region": self.bucket.get("region"),
-            "category": self.category,
-            "severity": severity if state in FINDING_STATES else "INFO",
-            "evidence_state": state,
-            "title": self.title,
-            "description": description,
-            "evidence": self.evidence,
-            "detection_source": "aws:s3",
-            "recommendation": recommendation,
-            "remediation_steps": remediation_steps or [],
-            "potential_monthly_impact": None,
-            "confidence": confidence,
-            "missing_information": missing_information or [],
-            "requires_human_approval": True,
-        }
+def _Evaluation(bucket: Dict[str, Any], rule_id: str, category: str, title: str) -> Evaluation:
+    return Evaluation("S3", bucket["name"], bucket.get("region"), rule_id, category, title, "aws:s3")
 
 
 def _check(bucket: Dict, name: str) -> Dict[str, Any]:
     return (bucket.get("checks") or {}).get(name) or {"status": "error", "value": None}
 
 
-def _unavailable(evaluation: _Evaluation, check_name: str, check: Dict, api: str) -> Dict[str, Any]:
-    reason = "permission denied" if check.get("status") == "access_denied" else "the request failed"
-    evaluation.cite(api, "Could not read %s: %s." % (check_name.replace("_", " "), reason))
-    return evaluation.result(
-        DATA_UNAVAILABLE,
-        description="This check could not run, so the setting is unknown (not assumed safe or unsafe).",
-        missing_information=["Grant %s to the CloudOps AI read-only role." % api],
-    )
+def _unavailable(evaluation: Evaluation, check_name: str, check: Dict, api: str) -> Dict[str, Any]:
+    return evaluation.unavailable(check_name, check.get("status"), api)
 
 
 def _effective_bpa(bucket: Dict, account_bpa: Optional[Dict]) -> Dict[str, Optional[bool]]:
@@ -367,17 +314,3 @@ def evaluate_bucket(bucket: Dict[str, Any], account_bpa: Optional[Dict] = None) 
         _rule_logging(bucket),
     ]
     return evaluations
-
-
-def summarize(evaluations: List[Dict[str, Any]]) -> Dict[str, Any]:
-    findings = sorted(
-        (e for e in evaluations if e["evidence_state"] in FINDING_STATES),
-        key=lambda e: (_SEVERITY_ORDER.get(e["severity"], 9), e["rule_id"]),
-    )
-    by_severity = {level: 0 for level in _SEVERITY_ORDER}
-    by_state = {state: 0 for state in (CONFIRMED, POTENTIAL, INSUFFICIENT_EVIDENCE, NO_ISSUE, DATA_UNAVAILABLE)}
-    for evaluation in evaluations:
-        by_state[evaluation["evidence_state"]] += 1
-    for finding in findings:
-        by_severity[finding["severity"]] += 1
-    return {"findings": findings, "by_severity": by_severity, "by_state": by_state}

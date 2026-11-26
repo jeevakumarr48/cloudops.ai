@@ -20,6 +20,9 @@ from routers import auth as auth_router
 from routers import workspaces as workspaces_router
 from services.ai_explainer import explain_findings
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
+from services.rds_discovery import RDSAccessError, discover_rds_instances
+from services.rds_governance import evaluate_instance as evaluate_rds_instance
+from services.governance_common import summarize as summarize_findings
 from services.s3_discovery import S3AccessError, discover_s3_buckets
 from services.s3_governance import evaluate_bucket, summarize as summarize_s3
 from services.cost_service import (
@@ -381,6 +384,50 @@ def get_s3_bucket_governance(bucket_name: str, refresh: bool = False):
         "scanned_at": inventory["scanned_at"],
         "bucket": bucket,
         "account_public_access_block": inventory["account_public_access_block"],
+        "evaluations": evaluations,
+        "findings": summary["findings"],
+        "by_severity": summary["by_severity"],
+        "by_state": summary["by_state"],
+    }
+
+
+@app.get("/api/resources/rds", dependencies=[Depends(require_operator)])
+def get_rds_resources(response: Response, region: Optional[str] = None, refresh: bool = False):
+    """Read-only RDS inventory with 14-day metrics and a governance summary."""
+    try:
+        inventory = discover_rds_instances(region=region, refresh=refresh)
+    except RDSAccessError as error:
+        return _unavailable(error)
+    for db in inventory["instances"]:
+        summary = summarize_findings(evaluate_rds_instance(db))
+        db["governance"] = {
+            "findings": len(summary["findings"]),
+            "by_severity": summary["by_severity"],
+            "by_state": summary["by_state"],
+        }
+    response.headers["Cache-Control"] = "private, no-store"
+    return inventory
+
+
+@app.get("/api/resources/rds/{database_id}/governance", dependencies=[Depends(require_operator)])
+def get_rds_governance(database_id: str, region: Optional[str] = None, refresh: bool = False):
+    """Every RDS rule's evaluation for one database, with evidence."""
+    try:
+        inventory = discover_rds_instances(region=region, refresh=refresh)
+    except RDSAccessError as error:
+        return _unavailable(error)
+    db = next((d for d in inventory["instances"] if d["identifier"] == database_id), None)
+    if db is None:
+        return JSONResponse(
+            status_code=404,
+            content={"status": "not_found", "error": "Database not found in the scanned region."},
+        )
+    evaluations = evaluate_rds_instance(db)
+    summary = summarize_findings(evaluations)
+    return {
+        "status": "ok",
+        "scanned_at": inventory["scanned_at"],
+        "database": db,
         "evaluations": evaluations,
         "findings": summary["findings"],
         "by_severity": summary["by_severity"],

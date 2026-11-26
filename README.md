@@ -179,6 +179,31 @@ estimates savings.
 
 The required permissions are in [`docs/iam/cloudops-readonly-policy.json`](docs/iam/cloudops-readonly-policy.json).
 
+## RDS discovery and governance
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/resources/rds` | DB instances with engine, class, storage, Multi-AZ, public access, encryption, backups, deletion protection, tags, internet-open security group rules, 14 days of hourly CloudWatch metrics and a governance summary |
+| `GET /api/resources/rds/{database_id}/governance` | All eight RDS rule evaluations for one database, with evidence |
+
+Optional `?region=` (default region otherwise) and `?refresh=true` (once a
+minute). Same access rule as S3: operator sign-in unless
+`CLOUDOPS_PUBLIC_SECURITY_FINDINGS=true`.
+
+| Rule | Category | Raised when |
+|---|---|---|
+| `RDS_PUBLIC_ACCESS` | SECURITY | Publicly accessible: CRITICAL if a security group allows 0.0.0.0/0 or ::/0 on the DB port, HIGH if groups are unreadable, MEDIUM if they are closed |
+| `RDS_STORAGE_ENCRYPTION` | SECURITY | Storage not encrypted |
+| `RDS_BACKUP_RETENTION` | AVAILABILITY | Retention 0 days (HIGH) or under 7 days |
+| `RDS_MULTI_AZ` | AVAILABILITY | Production-tagged and single-AZ; insufficient evidence when untagged or Aurora |
+| `RDS_DELETION_PROTECTION` | GOVERNANCE | Off on a production or untagged database |
+| `RDS_LOW_UTILIZATION` | UTILIZATION | 14 days with at least 80% hourly coverage and CPU mean < 10%, p95 < 20%, peak < 40%. Production databases get LOW severity, low confidence and a review-only recommendation |
+| `RDS_STORAGE_HEADROOM` | STORAGE | Free storage under 10% (or 20% without autoscaling), or over 80% unused on 100+ GiB |
+| `RDS_GP2_STORAGE` | COST | gp2 storage; gp3 is usually cheaper per GB, difference not calculated |
+
+Utilization is never judged on partial history, stopped instances or missing
+metrics; those return `INSUFFICIENT_EVIDENCE` or `DATA_UNAVAILABLE`.
+
 ## Accounts, workspaces and the database
 
 The original dashboard endpoints stay public and read-only. Accounts and
