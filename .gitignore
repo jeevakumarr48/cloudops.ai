@@ -35,3 +35,4 @@ plan.json
 # Local SQLite database
 *.db
 *.db-journal
+eval-report.json

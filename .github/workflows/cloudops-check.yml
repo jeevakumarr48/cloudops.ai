@@ -31,6 +31,22 @@ jobs:
       - name: Run unit tests
         run: python -m pytest backend/tests -q
 
+      - name: Recommendation evaluation (offline, no AWS or AI calls)
+        working-directory: backend
+        run: python -m evals.run_eval --json eval-report.json
+
+      - name: Database migrations apply cleanly and match the models
+        working-directory: backend
+        run: |
+          rm -f /tmp/ci.db
+          DATABASE_URL=sqlite:////tmp/ci.db python -m alembic -c alembic.ini upgrade head
+          DATABASE_URL=sqlite:////tmp/ci.db python -m alembic -c alembic.ini check
+
+      - name: Dependency vulnerability audit
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt
+
       - name: Detect Terraform files
         id: terraform
         run: |
@@ -71,6 +87,9 @@ jobs:
 
       - name: Lint frontend
         run: npm run lint
+
+      - name: Dependency vulnerability audit (runtime dependencies)
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Build frontend
         run: npm run build

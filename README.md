@@ -358,6 +358,8 @@ The backend tests use mocked structured data and do not create AWS resources.
 
 ## Deployment
 
+For the governance release (database, operator setup, preview, production, rollback and cost guardrails) follow [docs/RELEASE.md](docs/RELEASE.md). `scripts/smoke_test.py <url>` is a read-only post-deploy check.
+
 Deploy the services separately. Start the backend with:
 
 ```bash
