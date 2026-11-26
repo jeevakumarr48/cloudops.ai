@@ -31,3 +31,7 @@ plan.json
 # Local tooling
 .vscode/
 .DS_Store
+
+# Local SQLite database
+*.db
+*.db-journal

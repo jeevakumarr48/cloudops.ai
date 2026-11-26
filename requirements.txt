@@ -1,5 +1,9 @@
 fastapi
 uvicorn
 boto3
+sqlalchemy>=2.0,<3
+alembic>=1.13,<2
+argon2-cffi>=23.1
+psycopg[binary]>=3.2,<4
 pytest
 httpx

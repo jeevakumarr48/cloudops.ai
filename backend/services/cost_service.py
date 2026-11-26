@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Tuple
 from botocore.exceptions import BotoCoreError, ClientError
 
 from aws_client import COST_EXPLORER_REGION, create_cost_explorer_client
+from services import cost_store
 
 __all__ = [
     "CostServiceError",
@@ -98,6 +99,35 @@ def _single_flight(key: tuple):
         yield
 
 
+BUDGET_EXHAUSTED_MESSAGE = (
+    "The monthly Cost Explorer request budget for this deployment has been "
+    "reached and no earlier cost data is stored."
+)
+
+
+def _shared_fetch(cache_key: tuple, kind: str, params_key: str, fetch) -> Dict:
+    """Serve from the shared store, else spend one budgeted CE request.
+
+    Order: database snapshot for today -> billed request if under the
+    monthly cap -> most recent real snapshot -> clean error. Must be called
+    while holding the key's single-flight lock.
+    """
+    today = cache_key[-1]
+    stored = cost_store.load(kind, params_key, today)
+    if stored is not None:
+        _cache_set(cache_key, stored)
+        return stored
+    if not cost_store.consume_budget(today):
+        previous = cost_store.latest(kind, params_key)
+        if previous is not None:
+            _cache_set(cache_key, previous)
+            return previous
+        raise CostServiceError(BUDGET_EXHAUSTED_MESSAGE)
+    result = fetch()
+    cost_store.save(kind, params_key, today, result)
+    return result
+
+
 def _normalize_period(period: str) -> str:
     normalized = (period or "monthly").strip().lower()
     if normalized not in SUPPORTED_PERIODS:
@@ -130,8 +160,13 @@ def get_cost_summary(
         cached = _cache_get(cache_key)
         if cached is not None:
             return cached
-        return _fetch_cost_summary(
-            normalized_period, group_by_service, region_name, cache_key
+        return _shared_fetch(
+            cache_key,
+            "cost_summary",
+            "%s:%s:%s" % (normalized_period, bool(group_by_service), region_name),
+            lambda: _fetch_cost_summary(
+                normalized_period, group_by_service, region_name, cache_key
+            ),
         )
 
 
@@ -231,7 +266,12 @@ def get_cost_forecast(
         cached = _cache_get(cache_key)
         if cached is not None:
             return cached
-        return _fetch_cost_forecast(normalized_period, region_name, cache_key)
+        return _shared_fetch(
+            cache_key,
+            "cost_forecast",
+            "%s:%s" % (normalized_period, region_name),
+            lambda: _fetch_cost_forecast(normalized_period, region_name, cache_key),
+        )
 
 
 def _fetch_cost_forecast(

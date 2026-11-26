@@ -136,6 +136,43 @@ Copy `backend/.env.example` and `frontend/.env.example` to local environment fil
 | `CLOUDOPS_INVENTORY_CDN_SECONDS` | No | Vercel CDN cache lifetime for EC2, metrics, insights and overview responses, default 60 |
 | `CLOUDOPS_DISCOVERY_CACHE_SECONDS` | No | In-process EC2 DescribeInstances cache, default 60; 0 disables |
 | `CLOUDOPS_AI_CACHE_SECONDS` | No | Reuse an LLM explanation for unchanged findings, default 3600 |
+| `DATABASE_URL` | On Vercel, for accounts | Postgres URL (Neon pooled endpoint). Locally defaults to SQLite `backend/cloudops.db` |
+| `CLOUDOPS_COOKIE_SECURE` | No | `false` only for local HTTP development; default `true` |
+| `CLOUDOPS_SESSION_DAYS` | No | Session lifetime, default 7 |
+| `CLOUDOPS_REGISTRATION_OPEN` | No | `false` disables self-registration |
+| `CLOUDOPS_CE_MONTHLY_CALL_LIMIT` | No | Hard monthly cap on billed Cost Explorer requests, default 75 ($0.75) |
+
+## Accounts, workspaces and the database
+
+The original dashboard endpoints stay public and read-only. Accounts and
+workspaces are additive:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/auth/register` | Create an account and a personal workspace (you are its admin) |
+| `POST /api/auth/login` / `POST /api/auth/logout` | Start or end a session (HttpOnly, SameSite=Lax cookie) |
+| `GET /api/auth/me` | Current user and workspace memberships |
+| `GET /api/workspaces`, `POST /api/workspaces` | List or create workspaces |
+| `GET /api/workspaces/{id}` | Workspace and members (members only) |
+| `POST /api/workspaces/{id}/members` | Add a registered user as `admin` or `viewer` (admins only) |
+| `GET /api/workspaces/{id}/audit` | Recent audit events (admins only) |
+
+Passwords are hashed with Argon2id; session tokens are stored only as SHA-256
+digests. Non-members receive 404 for another workspace. Login and registration
+are rate limited in the database.
+
+Locally nothing needs configuring: a SQLite file is created and migrated on
+first use. In production set `DATABASE_URL` and migrate explicitly:
+
+```bash
+cd backend
+DATABASE_URL="postgresql://..." alembic upgrade head
+```
+
+Cost Explorer results are also stored in the database so every serverless
+instance shares them, and billed requests are capped per month
+(`CLOUDOPS_CE_MONTHLY_CALL_LIMIT`). When the cap is reached the most recent real
+snapshot is served; nothing is estimated.
 
 ## Testing
 

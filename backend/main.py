@@ -15,6 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from aws_client import AWSAccessError, discover_ec2_instances
+from routers import auth as auth_router
+from routers import workspaces as workspaces_router
 from services.ai_explainer import explain_findings
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
 from services.cost_service import (
@@ -46,7 +48,9 @@ _cors_origins = [origin.strip() for origin in os.environ.get(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=False,
+    # Credentials are needed for the session cookie when the frontend runs on
+    # a different local origin. Origins are an explicit list, never "*".
+    allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
@@ -72,6 +76,9 @@ def _cdn_cache(response: Response, seconds: int) -> None:
         response.headers["Cache-Control"] = (
             "public, max-age=0, s-maxage=%d, stale-while-revalidate=300" % seconds
         )
+
+app.include_router(auth_router.router)
+app.include_router(workspaces_router.router)
 
 
 def _seconds_until_utc_midnight() -> int:
