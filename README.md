@@ -339,6 +339,15 @@ The sidebar has two signed-in pages next to the original ones (which are unchang
 
 Sign-in uses the HttpOnly session cookie, so these pages call the API on the same origin: through the `/api` rewrite in `frontend/vercel.json` in production and through the Vite dev proxy locally (`npm run dev` proxies `/api` and `/health` to `VITE_API_URL`). Pages load data when opened or refreshed; nothing polls. A governance scan is reused for 60 seconds, so the pages share one round of AWS reads.
 
+## Observability
+
+Built in and free: no paid monitoring service, and no database write per request.
+
+- **Structured logs.** Every API log line carries the request id that is also returned in the `X-Request-ID` header, so one request can be followed through the Vercel log viewer. `CLOUDOPS_LOG_FORMAT=json` (the default on Vercel) writes one JSON object per line; locally the default is readable text. `CLOUDOPS_LOG_LEVEL` sets the level. Access logs record the method, route template, status and duration only: never query strings, bodies, cookies or headers, so ids, passwords and tokens stay out of logs.
+- **Health checks.** `GET /health` is liveness. `GET /health/ready` is readiness: it answers 503 when a configured database does not respond. The Docker image's health check uses it.
+- **Scan history.** Each real governance scan (scans are reused for 60 seconds) stores its duration, finding count and per-source status and timing in `scan_runs`, pruned to the latest 200 rows.
+- **Operations page** (`GET /api/ops/status`, operators only). Build and commit, database latency, AWS credential mode and AI provider; the Cost Explorer and AI budgets against their caps; per-source success rate and average scan time; and request count, p50/p95 latency, server errors and 503s for the current instance. Loading it makes no AWS or AI call.
+
 ## Request security
 
 - **Origin check.** A POST, PATCH, PUT or DELETE that carries the session cookie must come from an origin in `CLOUDOPS_AI_CORS_ORIGINS` or from the API's own origin (or, with no Origin header, must not be marked cross-site by the browser). Otherwise it is refused with `403 origin_not_allowed`. This adds to SameSite=Lax cookies and the JSON-only rule. The deployed frontend origin must be listed in `CLOUDOPS_AI_CORS_ORIGINS`.

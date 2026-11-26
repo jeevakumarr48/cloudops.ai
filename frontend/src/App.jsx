@@ -7,6 +7,7 @@ import TopBar from './components/TopBar'
 import Dashboard from './pages/Dashboard'
 import DemoNotice from './pages/DemoNotice'
 import Governance from './pages/Governance'
+import Operations from './pages/Operations'
 import Recommendations from './pages/Recommendations'
 import Security from './pages/Security'
 import useSession from './hooks/useSession'
@@ -17,7 +18,7 @@ import './components/governance/governance.css'
 
 // Pages that use the signed-in governance API. The original pages stay in
 // Dashboard, which stays mounted so switching pages does not reload them.
-const CONSOLE_PAGES = { Governance, Recommendations, Security }
+const CONSOLE_PAGES = { Governance, Recommendations, Security, Operations }
 
 function startingDemo() {
   const on = initialDemo()

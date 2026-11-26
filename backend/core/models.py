@@ -168,6 +168,23 @@ class UsageCounter(Base):
     count: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class ScanRun(Base):
+    """One governance scan: when it ran, how long each source took, and its outcome.
+
+    Written once per real scan (scans are cached for 60 seconds), never per
+    request, and pruned to the most recent rows, so it stays tiny.
+    """
+
+    __tablename__ = "scan_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    scope: Mapped[str] = mapped_column(String(36), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    duration_ms: Mapped[int] = mapped_column(Integer)
+    finding_count: Mapped[int] = mapped_column(Integer, default=0)
+    sources: Mapped[Dict[str, Any]] = mapped_column(JSON)
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 

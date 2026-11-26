@@ -25,6 +25,10 @@ test('an operator can sign in and sees the console even without AWS access', asy
   await expect(page.getByRole('heading', { name: 'Governance findings' })).toBeVisible()
   await expect(page.locator('main:visible .source-status')).toContainText(/unavailable|not scanned/i)
 
+  await page.getByRole('button', { name: 'Operations', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Source health' })).toBeVisible()
+  await expect(page.getByText('Cost Explorer requests this month')).toBeVisible()
+
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('button', { name: /Try the demo/ })).toBeVisible()
 })

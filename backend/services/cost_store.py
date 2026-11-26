@@ -47,6 +47,23 @@ def _month_key(today: date) -> str:
     return "ce-calls:%s" % today.strftime("%Y-%m")
 
 
+def budget_used(today: date) -> Optional[int]:
+    """Billed Cost Explorer requests counted this month (None without a database)."""
+    db = _session()
+    if db is None:
+        with _local_lock:
+            return _local_counts.get(_month_key(today), 0)
+    try:
+        from core.models import UsageCounter
+        row = db.get(UsageCounter, _month_key(today))
+        return row.count if row else 0
+    except SQLAlchemyError:
+        db.rollback()
+        return None
+    finally:
+        db.close()
+
+
 def consume_budget(today: date) -> bool:
     """Count one billed Cost Explorer request. ``False`` = cap reached."""
     limit = config.ce_monthly_call_limit()

@@ -15,12 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from aws_client import AWSAccessError, discover_ec2_instances
-from core import config, http_security
+from core import config, http_security, observability
 from core.authz import require_operator
 from routers import ai as ai_router
 from routers import auth as auth_router
 from routers import demo as demo_router
 from routers import governance as governance_router
+from routers import ops as ops_router
 from routers import security as security_router
 from routers import workspaces as workspaces_router
 from services.ai_explainer import explain_findings
@@ -47,6 +48,8 @@ from services.rds_governance import evaluate_instance as evaluate_rds_instance
 from services.s3_discovery import S3AccessError, discover_s3_buckets
 from services.s3_governance import evaluate_bucket
 from services.s3_governance import summarize as summarize_s3
+
+observability.configure_logging()
 
 app = FastAPI(
     title="CloudOps AI API",
@@ -107,6 +110,7 @@ app.include_router(governance_router.router)
 app.include_router(ai_router.router)
 app.include_router(security_router.router)
 app.include_router(demo_router.router)
+app.include_router(ops_router.router)
 
 
 def _seconds_until_utc_midnight() -> int:

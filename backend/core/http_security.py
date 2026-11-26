@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import time
 from typing import Iterable, Set
 from urllib.parse import urlsplit
 
@@ -23,7 +24,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from core import aws_session, config
+from core import aws_session, config, observability
 from core.security import SESSION_COOKIE
 
 logger = logging.getLogger("cloudops.http")
@@ -47,12 +48,32 @@ def _envelope(request: Request, status_code: int, message: str, detail=None, cod
     return JSONResponse(status_code=status_code, content=body)
 
 
+def _record(request: Request, status: int, started: float) -> None:
+    # The route template (for example /api/governance/findings/{finding_id})
+    # keeps metrics low-cardinality and keeps ids out of the logs.
+    route = getattr(request.scope.get("route"), "path", None) or "unmatched"
+    observability.record_request(request.method, route, status, (time.perf_counter() - started) * 1000)
+
+
 def install(app: FastAPI, allowed_origins: Iterable[str]) -> None:
     allowed: Set[str] = {o.rstrip("/") for o in allowed_origins if o}
 
     @app.middleware("http")
     async def security_middleware(request: Request, call_next):
         request.state.request_id = secrets.token_hex(8)
+        token = observability.request_id_var.set(request.state.request_id)
+        started = time.perf_counter()
+        try:
+            response = await _handle(request, call_next)
+            _record(request, response.status_code, started)
+            return response
+        except Exception:
+            _record(request, 500, started)
+            raise
+        finally:
+            observability.request_id_var.reset(token)
+
+    async def _handle(request: Request, call_next):
         aws_session.remember_oidc_token(request.headers.get("x-vercel-oidc-token"))
 
         # CSRF defence in depth (with SameSite=Lax and require_json): a

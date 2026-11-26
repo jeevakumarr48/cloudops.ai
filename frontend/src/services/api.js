@@ -50,6 +50,7 @@ export const sendRecommendationFeedback = (recommendationId, decision, note) => 
 
 export const getSecurityStatus = () => secureApi.get('/api/security/status')
 export const getAuditLog = (params = {}) => secureApi.get('/api/security/audit', { params })
+export const getOpsStatus = () => secureApi.get('/api/ops/status')
 
 // Turns an API error into a user-facing state without leaking internals.
 export function describeError(error) {

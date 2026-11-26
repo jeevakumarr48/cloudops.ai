@@ -208,7 +208,9 @@ def test_failed_source_never_resolves_its_findings(sources):
     scan()
     sources["fail"].add("s3")
     result = governance_engine.collect()
-    assert result["sources"]["s3"] == {"status": "unavailable", "error": "down", "evaluated_rules": 0}
+    s3 = {k: v for k, v in result["sources"]["s3"].items() if k != "duration_ms"}
+    assert s3 == {"status": "unavailable", "error": "down", "evaluated_rules": 0}
+    assert isinstance(result["sources"]["s3"]["duration_ms"], int)
     governance_engine.sync(result)
     assert governance_engine.resolved_findings() == []
 

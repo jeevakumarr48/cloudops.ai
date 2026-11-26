@@ -32,12 +32,12 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from aws_client import AWSAccessError, create_ec2_client, discover_ec2_instances
 from core.database import DatabaseUnavailable, session_factory
-from core.models import GovernanceFinding, utcnow
+from core.models import GovernanceFinding, ScanRun, utcnow
 from services import cost_governance, ec2_governance, rds_governance, s3_governance
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
 from services.cost_service import CostServiceError, get_cost_summary
@@ -115,14 +115,21 @@ def score(finding: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _run(name: str, fn: Callable[[], List[Dict[str, Any]]], expected: Tuple[Type[BaseException], ...]) -> Dict[str, Any]:
+    started = time.perf_counter()
+
+    def took() -> int:
+        return round((time.perf_counter() - started) * 1000)
+
     try:
         evaluations = fn()
-        return {"status": "ok", "error": None, "evaluations": evaluations}
+        return {"status": "ok", "error": None, "evaluations": evaluations, "duration_ms": took()}
     except expected as error:
-        return {"status": "unavailable", "error": str(error), "evaluations": []}
+        logger.warning("Governance source %s unavailable", name, extra={"source": name, "duration_ms": took()})
+        return {"status": "unavailable", "error": str(error), "evaluations": [], "duration_ms": took()}
     except Exception:
         logger.exception("Governance source %s failed", name)
-        return {"status": "unavailable", "error": "Unexpected error while collecting %s data." % name, "evaluations": []}
+        return {"status": "unavailable", "error": "Unexpected error while collecting %s data." % name, "evaluations": [],
+                "duration_ms": took()}
 
 
 def _ec2_source(refresh: bool) -> List[Dict[str, Any]]:
@@ -198,6 +205,7 @@ def _collect(refresh: bool, sources: Optional[List[str]]) -> Dict[str, Any]:
         "cost": (_cost_source, (CostServiceError,)),
     }
     selected = [s for s in (sources or SOURCES) if s in runners]
+    started = time.perf_counter()
     results = {name: _run(name, functools.partial(runners[name][0], refresh), runners[name][1]) for name in selected}
     evaluations: List[Dict[str, Any]] = []
     for name, result in results.items():
@@ -206,12 +214,43 @@ def _collect(refresh: bool, sources: Optional[List[str]]) -> Dict[str, Any]:
             if evaluation["evidence_state"] in FINDING_STATES:
                 evaluation["priority"] = score(evaluation)
             evaluations.append(evaluation)
-    return {
+    scan = {
         "scanned_at": datetime.now(timezone.utc).isoformat(),
-        "sources": {name: {"status": r["status"], "error": r["error"],
-                           "evaluated_rules": len(r["evaluations"])} for name, r in results.items()},
+        "sources": {name: {"status": r["status"], "error": r["error"], "evaluated_rules": len(r["evaluations"]),
+                           "duration_ms": r["duration_ms"]} for name, r in results.items()},
         "evaluations": evaluations,
     }
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    findings = sum(1 for e in evaluations if e["evidence_state"] in FINDING_STATES)
+    logger.info("Governance scan finished in %dms with %d finding(s)", duration_ms, findings,
+                extra={"duration_ms": duration_ms, "finding_count": findings,
+                       "sources": {n: r["status"] for n, r in results.items()}})
+    _record_scan(scan, duration_ms, findings)
+    return scan
+
+
+SCAN_HISTORY = 200
+
+
+def _record_scan(scan: Dict[str, Any], duration_ms: int, finding_count: int, scope: str = GLOBAL_SCOPE) -> None:
+    """Best effort: a scan history row for the ops page. Never fails a scan."""
+    try:
+        db = session_factory()()
+    except DatabaseUnavailable:
+        return
+    try:
+        db.add(ScanRun(scope=scope, duration_ms=duration_ms, finding_count=finding_count,
+                       sources={n: {k: v for k, v in s.items() if k != "error"} | {"error": bool(s["error"])}
+                                for n, s in scan["sources"].items()}))
+        db.flush()
+        keep = select(ScanRun.id).where(ScanRun.scope == scope).order_by(ScanRun.started_at.desc()).limit(SCAN_HISTORY)
+        db.execute(delete(ScanRun).where(ScanRun.scope == scope, ScanRun.id.not_in(keep)))
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.warning("Scan history could not be saved.")
+    finally:
+        db.close()
 
 
 def _aware(value: Optional[datetime]) -> Optional[datetime]:
