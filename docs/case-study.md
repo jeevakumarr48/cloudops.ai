@@ -59,7 +59,7 @@ and it cannot change anything itself.
 
 | Area | What is in place |
 | --- | --- |
-| Testing | 349 backend tests (pytest, coverage floor 90%, currently about 93%), 19 Vitest component tests, 11 Playwright end-to-end tests on desktop and a phone viewport, 15 Terraform tests with mocked providers |
+| Testing | 352 backend tests (pytest, coverage floor 90%, currently about 93%), 19 Vitest component tests, 11 Playwright end-to-end tests on desktop and a phone viewport, 15 Terraform tests with mocked providers |
 | AI quality | Offline evaluation of 10 scenarios with grounded and adversarial rewrites; CI fails if a fabricated figure, ARN or saving gets through |
 | Static checks | Ruff (including security rules), mypy, ESLint, Alembic model/migration drift check |
 | Supply chain | `pip-audit`, `npm audit`, Terraform provider lock file |

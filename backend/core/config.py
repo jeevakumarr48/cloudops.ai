@@ -62,6 +62,19 @@ def ce_monthly_call_limit() -> int:
     return int(os.environ.get("CLOUDOPS_CE_MONTHLY_CALL_LIMIT", "75"))
 
 
+def max_body_bytes() -> int:
+    """Largest request body accepted (CLOUDOPS_MAX_BODY_BYTES, default 2 MB).
+
+    Terraform plans are the largest legitimate input; Vercel itself stops at
+    4.5 MB. Invalid values fall back to the default.
+    """
+    try:
+        value = int(os.environ.get("CLOUDOPS_MAX_BODY_BYTES", "2000000"))
+    except ValueError:
+        return 2_000_000
+    return value if value > 0 else 2_000_000
+
+
 def operator_emails() -> set:
     """Emails allowed to view governance data for the deployment's own AWS
     account (as opposed to a workspace's connected account)."""

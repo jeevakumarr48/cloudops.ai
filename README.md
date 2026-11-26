@@ -4,7 +4,7 @@
 
 **Read-only AWS governance with explanations you can trust.** CloudOps AI scans EC2, S3, RDS and Cost Explorer with 21 deterministic rules, scores every finding with a transparent formula, cites the AWS evidence behind it, and turns it into a recommendation with copy-ready fix and undo commands. An optional language model may reword the advice, but a validator throws out anything it invents. CloudOps AI never changes your account.
 
-**[Try the public demo](https://cloudops-ai-roan.vercel.app/?demo=1)** (sample data, no sign-in) · [Case study](docs/case-study.md) · [Architecture](docs/architecture.md) · [Decisions](docs/adr/README.md) · [Threat model](docs/threat-model.md)
+**[Try the public demo](https://cloudops-ai-roan.vercel.app/?demo=1)** (sample data, no sign-in) · [Case study](docs/case-study.md) · [Architecture](docs/architecture.md) · [Decisions](docs/adr/README.md) · [Threat model](docs/threat-model.md) · [Changelog](CHANGELOG.md)
 
 ![Governance findings in the demo](docs/images/governance.png)
 
@@ -153,6 +153,7 @@ Copy `backend/.env.example` and `frontend/.env.example` to local environment fil
 | `CLOUDOPS_PUBLIC_SECURITY_FINDINGS` | No | `true` serves S3 findings anonymously (demo accounts only); default `false` |
 | `CLOUDOPS_S3_CACHE_SECONDS` | No | S3 scan cache lifetime, default 900 |
 | `CLOUDOPS_CE_MONTHLY_CALL_LIMIT` | No | Hard monthly cap on billed Cost Explorer requests, default 75 ($0.75) |
+| `CLOUDOPS_MAX_BODY_BYTES` | No | Largest request body accepted, default 2000000 (2 MB); larger requests get 413 |
 
 ## S3 discovery and governance
 

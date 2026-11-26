@@ -158,7 +158,7 @@ def record_request(method: str, route: str, status: int, duration_ms: float) -> 
 def build_info() -> Dict[str, Any]:
     sha = os.environ.get("VERCEL_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or ""
     return {
-        "version": os.environ.get("CLOUDOPS_VERSION") or "1.0.0-dev",
+        "version": os.environ.get("CLOUDOPS_VERSION") or "1.0.0",
         "commit": sha[:7] or None,
         "environment": os.environ.get("VERCEL_ENV") or ("serverless" if config.is_serverless() else "local"),
         "python": "%d.%d.%d" % sys.version_info[:3],

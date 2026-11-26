@@ -12,7 +12,7 @@ Nothing here calls AWS or an AI provider, so loading the ops page is free.
 from __future__ import annotations
 
 import time
-from datetime import date, timezone
+from datetime import timezone
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Response
@@ -24,7 +24,7 @@ from core import aws_session, config, observability
 from core.authz import Principal, require_operator_user
 from core.database import DatabaseUnavailable, session_factory
 from core.models import ScanRun
-from services import cost_store, governance_engine
+from services import cost_service, cost_store, governance_engine
 from services.recommendations import providers, service
 
 router = APIRouter(tags=["operations"])
@@ -111,7 +111,7 @@ def ops_status(response: Response, principal: Principal = Depends(require_operat
             "ai_provider": cfg.public()["provider"] if cfg else "none",
         },
         "budgets": {
-            "cost_explorer_requests_this_month": {"used": cost_store.budget_used(date.today()),
+            "cost_explorer_requests_this_month": {"used": cost_store.budget_used(cost_service._today_utc()),
                                                   "limit": config.ce_monthly_call_limit(),
                                                   "note": "Each request is billed by AWS; the cap keeps this line item under $1."},
             "ai_calls_today": {"used": ai_used, "limit": service.daily_call_limit()},

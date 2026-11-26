@@ -60,6 +60,44 @@ def test_anonymous_public_posts_are_unaffected():
 # --- headers and envelope --------------------------------------------------------
 
 
+def test_oversized_body_is_rejected_before_parsing(monkeypatch):
+    monkeypatch.setenv("CLOUDOPS_MAX_BODY_BYTES", "1000")
+    client = TestClient(main.app)
+    big = client.post("/api/iac/analyze", content=b"{" + b" " * 2000 + b"}",
+                      headers={"Content-Type": "application/json"})
+    assert big.status_code == 413
+    assert big.json()["code"] == "payload_too_large"
+    assert big.json()["detail"] == {"limit_bytes": 1000, "received_bytes": 2002}
+    assert big.headers["X-Request-ID"]
+    small = client.post("/api/iac/analyze", json={})
+    assert small.status_code == 400  # reached the endpoint: no plan given
+
+
+def test_chunked_body_without_length_is_refused():
+    def chunks():
+        yield b'{"plan": {}}'
+
+    response = TestClient(main.app).post("/api/iac/analyze", content=chunks(),
+                                         headers={"Content-Type": "application/json"})
+    assert response.status_code == 411 and response.json()["code"] == "length_required"
+
+
+def test_bad_content_length_and_bad_limit(monkeypatch):
+    from core import config
+    monkeypatch.setenv("CLOUDOPS_MAX_BODY_BYTES", "lots")
+    assert config.max_body_bytes() == 2_000_000
+    monkeypatch.setenv("CLOUDOPS_MAX_BODY_BYTES", "-5")
+    assert config.max_body_bytes() == 2_000_000
+    monkeypatch.delenv("CLOUDOPS_MAX_BODY_BYTES")
+    from starlette.requests import Request
+
+    from core import http_security
+    scope = {"type": "http", "method": "POST", "path": "/", "headers": [(b"content-length", b"abc")]}
+    request = Request(scope)
+    request.state.request_id = "r1"
+    assert http_security._body_size_error(request).status_code == 400
+
+
 def test_security_headers_and_request_id():
     response = TestClient(main.app).get("/health")
     for header in ("X-Request-ID", "X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy", "Content-Security-Policy"):

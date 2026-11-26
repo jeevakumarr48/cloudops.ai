@@ -1,0 +1,25 @@
+# Weekly dependency update PRs. Each ecosystem's minor and patch updates are
+# grouped into one PR; CI runs the full suite on each.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
+
+  - package-ecosystem: pip
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      python: { update-types: [minor, patch] }
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly }
+    groups:
+      npm: { update-types: [minor, patch] }
+
+  - package-ecosystem: terraform
+    directories: [/infra/terraform/aws, /infra/terraform/vercel]
+    schedule: { interval: monthly }

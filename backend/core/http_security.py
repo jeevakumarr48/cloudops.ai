@@ -31,7 +31,8 @@ logger = logging.getLogger("cloudops.http")
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CODES = {400: "bad_request", 401: "unauthenticated", 403: "forbidden", 404: "not_found", 405: "method_not_allowed",
-         409: "conflict", 415: "unsupported_media_type", 422: "validation_error", 429: "rate_limited",
+         409: "conflict", 411: "length_required", 413: "payload_too_large", 415: "unsupported_media_type",
+         422: "validation_error", 429: "rate_limited",
          500: "internal_error", 503: "unavailable"}
 _DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
 
@@ -55,6 +56,23 @@ def _record(request: Request, status: int, started: float) -> None:
     observability.record_request(request.method, route, status, (time.perf_counter() - started) * 1000)
 
 
+def _body_size_error(request: Request) -> JSONResponse | None:
+    limit = config.max_body_bytes()
+    length = request.headers.get("content-length")
+    if length is None:
+        if "chunked" in (request.headers.get("transfer-encoding") or "").lower():
+            return _envelope(request, 411, "Send the request with a Content-Length header.")
+        return None
+    try:
+        size = int(length)
+    except ValueError:
+        return _envelope(request, 400, "Invalid Content-Length header.")
+    if size > limit:
+        return _envelope(request, 413, "The request body is larger than %d bytes." % limit,
+                         detail={"limit_bytes": limit, "received_bytes": size})
+    return None
+
+
 def install(app: FastAPI, allowed_origins: Iterable[str]) -> None:
     allowed: Set[str] = {o.rstrip("/") for o in allowed_origins if o}
 
@@ -75,6 +93,14 @@ def install(app: FastAPI, allowed_origins: Iterable[str]) -> None:
 
     async def _handle(request: Request, call_next):
         aws_session.remember_oidc_token(request.headers.get("x-vercel-oidc-token"))
+
+        # Refuse oversized bodies before anything reads them. Public endpoints
+        # such as /api/iac/analyze parse whatever they are sent.
+        if request.method in UNSAFE_METHODS:
+            rejected = _body_size_error(request)
+            if rejected is not None:
+                rejected.headers["X-Request-ID"] = request.state.request_id
+                return rejected
 
         # CSRF defence in depth (with SameSite=Lax and require_json): a
         # state-changing request that carries the session cookie must come
