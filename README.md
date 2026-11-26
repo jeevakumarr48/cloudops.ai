@@ -280,6 +280,19 @@ Pipeline: findings -> evidence bundle (finding, other findings on the same resou
 
 The legacy `/api/insights` explanation and its `ai_explainer` are unchanged.
 
+### Evaluating recommendations
+
+`backend/evals` holds 10 scenarios built from realistic discovery records run through the real rules: a public unencrypted bucket, a fully hardened bucket (must produce nothing), a bucket whose checks are permission-denied (must be "unknown", never a finding), a public unencrypted production database, a database with only partial metric history, SSH open to the internet, a low-CPU production instance, a stopped untagged instance, a weekly cost increase, and a Terraform plan that upsizes a low-CPU instance. Each scenario carries a grounded rewrite that must be accepted and adversarial rewrites (invented costs, resources, ARNs and savings, asserted breaches, automatic changes, dismissive or overconfident wording, bad citations) that must be rejected by the intended check.
+
+```bash
+cd backend
+python -m evals.run_eval                  # offline, no AWS or AI calls
+python -m evals.run_eval --live           # also score the configured provider (one call per scenario)
+python -m evals.run_eval --json report.json
+```
+
+The offline run is part of the test suite and must pass in full. Live results are reported, not asserted, since model output varies.
+
 ## Accounts, workspaces and the database
 
 The original dashboard endpoints stay public and read-only. Accounts and
