@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from aws_client import AWSAccessError, discover_ec2_instances
 from core.authz import require_operator
+from routers import ai as ai_router
 from routers import auth as auth_router
 from routers import governance as governance_router
 from routers import workspaces as workspaces_router
@@ -87,6 +88,7 @@ def _cdn_cache(response: Response, seconds: int) -> None:
 app.include_router(auth_router.router)
 app.include_router(workspaces_router.router)
 app.include_router(governance_router.router)
+app.include_router(ai_router.router)
 
 
 def _seconds_until_utc_midnight() -> int:

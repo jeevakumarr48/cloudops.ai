@@ -226,3 +226,47 @@ class GovernanceFinding(Base):
     first_detected: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_detected: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+RECOMMENDATION_DECISIONS = ("accepted", "rejected", "remediation_in_progress", "remediated_pending_verification")
+
+
+class RecommendationRecord(Base):
+    """Cached recommendation for one finding at one evidence state.
+
+    A new evidence hash means the facts changed, so a new row (and a new
+    recommendation) is produced; unchanged evidence reuses the stored one and
+    never triggers another AI call.
+    """
+
+    __tablename__ = "recommendations"
+    __table_args__ = (UniqueConstraint("scope", "finding_id", "evidence_hash", name="uq_scope_finding_evidence"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    scope: Mapped[str] = mapped_column(String(36), default="global", index=True)
+    recommendation_id: Mapped[str] = mapped_column(String(32), index=True)
+    finding_id: Mapped[str] = mapped_column(String(32))
+    evidence_hash: Mapped[str] = mapped_column(String(32))
+    rule_id: Mapped[str] = mapped_column(String(64))
+    generator: Mapped[str] = mapped_column(String(8))
+    model: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    payload: Mapped[Dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RecommendationFeedback(Base):
+    """A human decision on a recommendation. Recording a decision changes
+    nothing in AWS; it is an audit trail and a signal for evaluation."""
+
+    __tablename__ = "recommendation_feedback"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    scope: Mapped[str] = mapped_column(String(36), default="global", index=True)
+    recommendation_id: Mapped[str] = mapped_column(String(32), index=True)
+    finding_id: Mapped[str] = mapped_column(String(32))
+    user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    decision: Mapped[str] = mapped_column(String(40))
+    note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    generator: Mapped[str] = mapped_column(String(8))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

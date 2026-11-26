@@ -135,6 +135,8 @@ Copy `backend/.env.example` and `frontend/.env.example` to local environment fil
 | `CLOUDOPS_COST_CDN_SECONDS` | No | Vercel CDN cache lifetime for successful cost responses, default 86400 |
 | `CLOUDOPS_INVENTORY_CDN_SECONDS` | No | Vercel CDN cache lifetime for EC2, metrics, insights and overview responses, default 60 |
 | `CLOUDOPS_DISCOVERY_CACHE_SECONDS` | No | In-process EC2 DescribeInstances cache, default 60; 0 disables |
+| `CLOUDOPS_AI_PROVIDER` | No | Recommendation rewrite provider: `none` (default), `ollama`, `openai_compatible` |
+| `CLOUDOPS_AI_DAILY_CALL_LIMIT` | No | Max AI provider calls per UTC day for recommendations, default 20 |
 | `CLOUDOPS_AI_CACHE_SECONDS` | No | Reuse an LLM explanation for unchanged findings, default 3600 |
 | `DATABASE_URL` | On Vercel, for accounts | Postgres URL (Neon pooled endpoint). Locally defaults to SQLite `backend/cloudops.db` |
 | `CLOUDOPS_COOKIE_SECURE` | No | `false` only for local HTTP development; default `true` |
@@ -255,6 +257,28 @@ reuses the per-day series now included in `/api/costs?period=daily` (`daily`
 field), so it makes no extra billed request.
 
 After pulling this change, run `alembic upgrade head` again on production.
+
+## AI recommendations
+
+Every finding from the governance engine becomes a recommendation with the 12 required fields: title, resource, problem, evidence, why it matters, suggested action, expected benefits, potential risks, estimated savings, confidence, missing information and `requires_human_approval` (always `true`, enforced by the schema).
+
+Pipeline: findings -> evidence bundle (finding, other findings on the same resource, the facts the text may mention) -> deterministic template -> optional AI rewrite -> validator -> stored per evidence hash.
+
+- **Works with no AI at all.** Templates cover every rule; the default provider is `none`.
+- **The AI only rewrites prose.** It may return problem, why it matters, action, benefits, risks and a correlation note, and must cite evidence ids. Severity, evidence state, priority score, confidence, savings and the resource always come from the rule engine.
+- **Validator.** AI text is discarded (template used instead, violations recorded) if it cites unknown or no evidence, names resource ids or ARNs not in the evidence, states money, percentages, sizes or durations not in the evidence, claims savings or guarantees, makes security claims without a security finding (or asserts a breach on any resource), proposes automatic or unapproved changes, or contradicts the finding.
+- **Savings** are shown only when a rule attaches a measured figure with its basis; nothing is estimated from list prices.
+- **Cost control.** `GET /api/ai/recommendations` never calls a provider. `POST /api/ai/analyze` is user-triggered, handles at most 10 findings, skips evidence that already has an AI rewrite or was already rejected, and is capped per UTC day by `CLOUDOPS_AI_DAILY_CALL_LIMIT` (counted in the database). Without a database no provider call is made.
+- **Ollama** (`CLOUDOPS_AI_PROVIDER=ollama`, default model `llama3.2:3b` at `http://localhost:11434/v1`) works only when the API runs on the same machine; a Vercel function cannot reach a laptop.
+
+| Method | Path | Access | Purpose |
+| --- | --- | --- | --- |
+| GET | `/api/ai/recommendations` | operator | Recommendations and a deterministic posture summary |
+| GET | `/api/ai/status` | operator | Provider, model, calls used today (never the key) |
+| POST | `/api/ai/analyze` | signed-in operator | AI rewrite of up to 10 findings (`finding_ids` or top `limit`) |
+| POST | `/api/ai/recommendations/{id}/feedback` | signed-in operator | Record `accepted`, `rejected`, `remediation_in_progress` or `remediated_pending_verification`; changes nothing in AWS |
+
+The legacy `/api/insights` explanation and its `ai_explainer` are unchanged.
 
 ## Accounts, workspaces and the database
 
