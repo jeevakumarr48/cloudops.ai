@@ -8,6 +8,7 @@ import SourceStatus from '../components/governance/SourceStatus'
 import FixCommands from '../components/governance/FixCommands'
 import FixFirstPlan from '../components/governance/FixFirstPlan'
 import { jumpToRecommendation } from '../components/governance/fixHelpers'
+import { useDemo } from '../demo/demoMode'
 import { DECISIONS, SEVERITIES, formatDate, label, severityTone, stateTone } from '../components/governance/labels'
 import { analyzeWithAi, describeError, getAiRecommendations, getAiStatus, sendRecommendationFeedback } from '../services/api'
 
@@ -28,6 +29,7 @@ function List({ items, empty = 'None' }) {
 }
 
 function Feedback({ rec, isOperator, onSaved }) {
+  const { demo } = useDemo()
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState(null)
@@ -41,7 +43,7 @@ function Feedback({ rec, isOperator, onSaved }) {
     {isOperator ? <div className="rec-feedback-row">
       <input value={note} maxLength={500} placeholder="Note (optional)" onChange={(e) => setNote(e.target.value)} aria-label="Feedback note" />
       {DECISIONS.map(([value, text]) => <Button key={value} size="sm" variant={current?.decision === value ? 'primary' : 'secondary'} disabled={busy !== null} onClick={() => send(value)}>{busy === value ? '…' : text}</Button>)}
-    </div> : <p className="muted">Sign in as an operator to record a decision.</p>}
+    </div> : <p className="muted">{demo ? 'Decisions are turned off in the demo.' : 'Sign in as an operator to record a decision.'}</p>}
     {error && <p className="form-error">{error}</p>}
   </div>
 }
@@ -85,6 +87,7 @@ function RecommendationCard({ rec, isOperator, aiReady, onAnalyze, analyzing, on
 }
 
 function Recommendations({ isOperator, onSignIn, sessionKey }) {
+  const { demo } = useDemo()
   const [data, setData] = useState(null)
   const [status, setStatus] = useState(null)
   const [error, setError] = useState(null)
@@ -122,20 +125,21 @@ function Recommendations({ isOperator, onSignIn, sessionKey }) {
 
   return <main className="dashboard-content">
     <div className="page-heading"><div><span className="eyebrow">Rules detect, AI explains</span><h1>Recommendations</h1><p>Each finding becomes a recommendation with evidence, trade-offs and missing information. Every action needs human approval.</p></div>
-      <div className="heading-actions"><button className="secondary-button" onClick={() => load(true)} disabled={loading} title="Re-scan sources"><RefreshCw size={15} className={loading ? 'spin' : ''} /> Refresh</button></div></div>
+      <div className="heading-actions">{!demo && <button className="secondary-button" onClick={() => load(true)} disabled={loading} title="Re-scan sources"><RefreshCw size={15} className={loading ? 'spin' : ''} /> Refresh</button>}</div></div>
     {error ? <AccessGate error={error} onSignIn={onSignIn} /> : <>
       <div className="two-column rec-top">
         <section className="panel"><div className="panel-heading"><div><span className="eyebrow">Posture summary</span><h2>Where things stand</h2><p>Counts of real findings only.</p></div><Lightbulb className="panel-heading-icon" size={20} /></div>
           {loading && !data ? <EmptyState loading /> : <p className="posture-text">{data?.summary?.text}</p>}
           <SourceStatus sources={data?.sources} />
-          {data && !data.persisted && <p className="muted">Not saved: no database is configured, so feedback and AI rewrites are unavailable.</p>}
+          {data && !data.persisted && !demo && <p className="muted">Not saved: no database is configured, so feedback and AI rewrites are unavailable.</p>}
         </section>
         <section className="panel"><div className="panel-heading"><div><span className="eyebrow">Optional</span><h2>AI rewrite</h2><p>Runs only when you ask. Output is checked against the evidence and rejected if it invents anything.</p></div><Bot className="panel-heading-icon" size={20} /></div>
           {status && <dl className="ai-status">
             <div><dt>Provider</dt><dd>{aiReady ? `${label(provider.provider)} · ${provider.model}` : 'None configured'}</dd></div>
             <div><dt>Calls today</dt><dd>{status.calls_used_today ?? '—'} of {status.daily_call_limit}</dd></div>
           </dl>}
-          {!aiReady && status && <p className="muted">Recommendations work fully without AI. To enable rewrites, set CLOUDOPS_AI_PROVIDER on the API (ollama for a free local model).</p>}
+          {demo && <p className="muted">AI rewrites are turned off in the demo so it never spends provider calls. Every recommendation here is the rule template, which is what the app shows when no AI provider is configured.</p>}
+          {!demo && !aiReady && status && <p className="muted">Recommendations work fully without AI. To enable rewrites, set CLOUDOPS_AI_PROVIDER on the API (ollama for a free local model).</p>}
           {isOperator && aiReady && <Button variant="primary" disabled={analyzing || remaining === 0} onClick={() => analyze(null)}><Sparkles size={15} /> {analyzing ? 'Analyzing…' : 'Rewrite top 5 with AI'}</Button>}
           {!isOperator && aiReady && <p className="muted">Sign in as an operator to run an AI rewrite.</p>}
           {analysis && (analysis.ok ? <ul className="analysis-result">{analysis.result.results.map((r) => <li key={r.finding_id}>{OUTCOMES[r.outcome] || r.outcome}</li>)}<li className="muted">{analysis.result.provider_calls} provider call(s) used.</li></ul> : <p className="form-error">{analysis.message}</p>)}

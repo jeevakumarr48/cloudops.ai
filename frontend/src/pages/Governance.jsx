@@ -5,6 +5,7 @@ import Button from '../components/ui/Button'
 import EmptyState from '../components/EmptyState'
 import StatCard from '../components/StatCard'
 import AccessGate from '../components/governance/AccessGate'
+import { useDemo } from '../demo/demoMode'
 import SourceStatus from '../components/governance/SourceStatus'
 import { CATEGORIES, EVIDENCE_STATES, FINDING_STATUSES, SETTABLE_STATUSES, SEVERITIES, formatDate, label, severityTone, stateTone } from '../components/governance/labels'
 import { describeError, getGovernanceFindings, getGovernanceSummary, updateFindingStatus } from '../services/api'
@@ -65,6 +66,7 @@ function FindingDetail({ finding, isOperator, onSaved }) {
 }
 
 function Governance({ isOperator, onSignIn, sessionKey }) {
+  const { demo } = useDemo()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [summary, setSummary] = useState(null)
   const [findings, setFindings] = useState(null)
@@ -97,7 +99,7 @@ function Governance({ isOperator, onSignIn, sessionKey }) {
 
   return <main className="dashboard-content">
     <div className="page-heading"><div><span className="eyebrow">Unified governance</span><h1>Governance findings</h1><p>Deterministic checks across EC2, S3, RDS and cost data. Every finding cites the AWS evidence it is based on.</p></div>
-      <div className="heading-actions">{summary && <span className="data-badge is-live"><i /> Scanned {formatDate(summary.scanned_at)}</span>}<button className="secondary-button" onClick={() => load(true)} disabled={loading} title="Re-scan sources (rate limited)"><RefreshCw size={15} className={loading ? 'spin' : ''} /> Re-scan</button></div></div>
+      <div className="heading-actions">{summary && <span className="data-badge is-live"><i /> Scanned {formatDate(summary.scanned_at)}</span>}{!demo && <button className="secondary-button" onClick={() => load(true)} disabled={loading} title="Re-scan sources (rate limited)"><RefreshCw size={15} className={loading ? 'spin' : ''} /> Re-scan</button>}</div></div>
     {error ? <AccessGate error={error} onSignIn={onSignIn} /> : <>
       <section className="stats-grid">
         <StatCard label="Open findings" kind="recommendations" description="Excludes false positives" value={summary ? String(summary.total_findings) : null} loading={loading && !summary} />

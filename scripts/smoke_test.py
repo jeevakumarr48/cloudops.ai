@@ -92,6 +92,12 @@ def main(argv=None) -> int:
         check("governance findings private when signed out", status == 401 and body.get("code") == "unauthenticated", "HTTP %s" % status)
     status, _, _ = client.call("GET", "/api/ai/recommendations")
     check("recommendations private when signed out", status in (200, 401), "HTTP %s" % status)
+    status, _, body = client.call("GET", "/api/demo/governance/summary")
+    if status == 404:
+        note("demo is turned off (CLOUDOPS_DEMO_ENABLED=false)")
+    else:
+        check("public demo serves labelled sample data", status == 200 and isinstance(body, dict) and body.get("demo") is True,
+              "HTTP %s" % status)
 
     evil = Client(args.base_url)
     status, _, body = evil.call("POST", "/api/auth/logout", body={},

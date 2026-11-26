@@ -301,6 +301,19 @@ python -m evals.run_eval --json report.json
 
 The offline run is part of the test suite and must pass in full. Live results are reported, not asserted, since model output varies.
 
+## Public demo
+
+Open the frontend with `?demo=1` (or press **Try the demo**) to explore the Governance and Recommendations pages without an account or an AWS connection. The demo reads `/api/demo/*`, which runs the synthetic discovery inputs from `backend/evals/scenarios.py` through the real rules, scoring, recommendation templates, fix commands and fix-first plan. Every response is labelled `demo: true` with a sample-data notice, and a banner stays on screen.
+
+The demo never reads AWS, never writes to the database and never calls an AI provider, and it has no write endpoints. Real findings stay behind operator sign-in. Pages that read live AWS data directly (Overview, Cost Analysis and the others) show a notice in demo mode. Turn it off with `CLOUDOPS_DEMO_ENABLED=false`.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/demo/governance/summary` | Same shape as `/api/governance/summary` |
+| GET | `/api/demo/governance/findings` | Same filters as `/api/governance/findings` |
+| GET | `/api/demo/ai/recommendations` | Templates, fix commands and plan; no AI |
+| GET | `/api/demo/ai/status` | Always reports no provider |
+
 ## Governance console
 
 The sidebar has two signed-in pages next to the original ones (which are unchanged):

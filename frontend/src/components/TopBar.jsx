@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { LogIn, LogOut, Menu, Plus, UserRound } from 'lucide-react'
+import { FlaskConical, LogIn, LogOut, Menu, Plus, UserRound } from 'lucide-react'
 import StatusPill from './ui/StatusPill'
 import { getHealth } from '../services/api'
+import { useDemo } from '../demo/demoMode'
 
 function TopBar({ onMenu, onScan, session, onSignIn }) {
   const [connection, setConnection] = useState('checking')
+  const { demo, enterDemo } = useDemo()
 
   useEffect(() => {
     let active = true
@@ -26,11 +28,12 @@ function TopBar({ onMenu, onScan, session, onSignIn }) {
       <div className="topbar-context">
         <span className="eyebrow">CloudOps AI</span>
         <span className="context-divider" />
-        <span>AWS Account</span>
+        <span>{demo ? 'Demo account (sample data)' : 'AWS Account'}</span>
         <StatusPill tone={status.tone} className="connected" title="Live connectivity to the CloudOps AI API (/health)">{status.label}</StatusPill>
         <span className="region-label">Region: <b>—</b></span>
       </div>
       <div className="topbar-actions">
+        {!demo && session?.status !== 'signed_in' && <button type="button" className="secondary-button demo-button" onClick={enterDemo} title="Explore the console with sample data"><FlaskConical size={15} /> Try the demo</button>}
         {session?.status === 'signed_in' ? <span className="account-chip" title={session.isOperator ? 'Operator: can view and act on governance data' : 'Signed in (not an operator)'}>
           <UserRound size={15} /><span className="account-email">{session.me.user.display_name || session.me.user.email}</span>
           {session.isOperator && <span className="account-role">Operator</span>}

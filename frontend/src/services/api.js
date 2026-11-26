@@ -31,12 +31,17 @@ export const login = (email, password) => secureApi.post('/api/auth/login', { em
 export const register = (email, password, displayName) => secureApi.post('/api/auth/register', { email, password, display_name: displayName || null })
 export const logout = () => secureApi.post('/api/auth/logout', {})
 
-export const getGovernanceSummary = (refresh = false) => secureApi.get('/api/governance/summary', { params: { refresh } })
-export const getGovernanceFindings = (params = {}) => secureApi.get('/api/governance/findings', { params })
+// In demo mode the read endpoints switch to the public sample-data versions.
+let demoMode = false
+export const setDemoMode = (on) => { demoMode = Boolean(on) }
+const read = (path) => (demoMode ? path.replace('/api/', '/api/demo/') : path)
+
+export const getGovernanceSummary = (refresh = false) => secureApi.get(read('/api/governance/summary'), { params: demoMode ? {} : { refresh } })
+export const getGovernanceFindings = (params = {}) => secureApi.get(read('/api/governance/findings'), { params })
 export const updateFindingStatus = (findingId, status, note) => secureApi.patch(`/api/governance/findings/${encodeURIComponent(findingId)}`, { status, note: note || null })
 
-export const getAiStatus = () => secureApi.get('/api/ai/status')
-export const getAiRecommendations = (refresh = false) => secureApi.get('/api/ai/recommendations', { params: { refresh } })
+export const getAiStatus = () => secureApi.get(read('/api/ai/status'))
+export const getAiRecommendations = (refresh = false) => secureApi.get(read('/api/ai/recommendations'), { params: demoMode ? {} : { refresh } })
 export const analyzeWithAi = (body) => secureApi.post('/api/ai/analyze', body, { timeout: 300000 })
 export const sendRecommendationFeedback = (recommendationId, decision, note) => secureApi.post(`/api/ai/recommendations/${encodeURIComponent(recommendationId)}/feedback`, { decision, note: note || null })
 

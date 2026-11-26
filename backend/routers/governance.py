@@ -59,40 +59,51 @@ def list_findings(
     include_resolved: bool = False,
     limit: int = Query(200, ge=1, le=1000),
 ):
-    category = _validated(category, CATEGORIES, "category")
-    severity = _validated(severity, SEVERITY_ORDER, "severity")
-    evidence_state = _validated(evidence_state, EVIDENCE_STATES, "evidence_state")
-    status = _validated(status, ("open", "acknowledged", "accepted_risk", "false_positive", "resolved"), "status")
-    resource_type = resource_type.strip().upper() if resource_type else None
+    category, severity, evidence_state, resource_type, status = validated_filters(
+        category, severity, evidence_state, resource_type, status)
 
     result = _scan(refresh)
     findings = result["findings"]
     if include_resolved or status == "resolved":
         findings = findings + governance_engine.resolved_findings()
+    selected = filter_findings(findings, category, severity, evidence_state, resource_type, status)
+    response.headers["Cache-Control"] = "private, no-store"
+    return {"status": "ok", "scanned_at": result["scanned_at"], "sources": result["sources"],
+            "total": len(selected), "findings": selected[:limit]}
 
+
+def validated_filters(category, severity, evidence_state, resource_type, status):
+    return (_validated(category, CATEGORIES, "category"),
+            _validated(severity, SEVERITY_ORDER, "severity"),
+            _validated(evidence_state, EVIDENCE_STATES, "evidence_state"),
+            resource_type.strip().upper() if resource_type else None,
+            _validated(status, ("open", "acknowledged", "accepted_risk", "false_positive", "resolved"), "status"))
+
+
+def filter_findings(findings, category=None, severity=None, evidence_state=None, resource_type=None, status=None):
     def keep(f):
         return ((category is None or f["category"] == category)
                 and (severity is None or f["severity"] == severity)
                 and (evidence_state is None or f["evidence_state"] == evidence_state)
                 and (resource_type is None or f["resource_type"].upper() == resource_type)
                 and (status is None or f["lifecycle"]["status"] == status))
-
-    selected = [f for f in findings if keep(f)]
-    response.headers["Cache-Control"] = "private, no-store"
-    return {"status": "ok", "scanned_at": result["scanned_at"], "sources": result["sources"],
-            "total": len(selected), "findings": selected[:limit]}
+    return [f for f in findings if keep(f)]
 
 
 @router.get("/summary", dependencies=[Depends(require_operator)])
 def summary(response: Response, refresh: bool = False):
     result = _scan(refresh)
+    response.headers["Cache-Control"] = "private, no-store"
+    return summary_payload(result)
+
+
+def summary_payload(result: Dict[str, Any]) -> Dict[str, Any]:
     active = [f for f in result["findings"] if f["lifecycle"]["status"] not in ("false_positive",)]
     by = lambda key, keys: {k: sum(1 for f in active if f[key] == k) for k in keys}  # noqa: E731
     by_state = {state: 0 for state in EVIDENCE_STATES}
     for evaluation in result["evaluations"]:
         by_state[evaluation["evidence_state"]] += 1
     resource_types = sorted({f["resource_type"] for f in result["evaluations"]})
-    response.headers["Cache-Control"] = "private, no-store"
     return {
         "status": "ok",
         "scanned_at": result["scanned_at"],

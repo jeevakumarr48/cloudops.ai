@@ -19,6 +19,7 @@ from core import http_security
 from core.authz import require_operator
 from routers import ai as ai_router
 from routers import auth as auth_router
+from routers import demo as demo_router
 from routers import governance as governance_router
 from routers import security as security_router
 from routers import workspaces as workspaces_router
@@ -95,6 +96,7 @@ app.include_router(workspaces_router.router)
 app.include_router(governance_router.router)
 app.include_router(ai_router.router)
 app.include_router(security_router.router)
+app.include_router(demo_router.router)
 
 
 def _seconds_until_utc_midnight() -> int:
