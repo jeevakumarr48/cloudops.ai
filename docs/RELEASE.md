@@ -87,6 +87,10 @@ Missing permissions are reported per check as `DATA_UNAVAILABLE`; nothing breaks
 | AI provider | off by default; user-triggered; 10 findings per run; 20 calls/day; cached per evidence | $0 (Ollama/none) |
 | Vercel Hobby, Neon Free, GitHub Actions | free tiers; Vercel and Neon pause instead of billing | $0 |
 | STS (role/OIDC) | free | $0 |
+| IAM role, policy, OIDC provider (`infra/terraform`) | free | $0 |
+
+Re-check these prices and free-tier terms before each release: free tiers are
+not permanent, and a change can move the worst case past the $1 ceiling.
 
 ## 6. Known limitations
 

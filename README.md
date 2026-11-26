@@ -2,53 +2,51 @@
 
 [![CloudOps AI checks](https://github.com/jeevakumarr48/cloudops.ai/actions/workflows/cloudops-check.yml/badge.svg)](https://github.com/jeevakumarr48/cloudops.ai/actions/workflows/cloudops-check.yml)
 
-## Overview
+**Read-only AWS governance with explanations you can trust.** CloudOps AI scans EC2, S3, RDS and Cost Explorer with 21 deterministic rules, scores every finding with a transparent formula, cites the AWS evidence behind it, and turns it into a recommendation with copy-ready fix and undo commands. An optional language model may reword the advice, but a validator throws out anything it invents. CloudOps AI never changes your account.
 
-CloudOps AI is an AI-assisted cloud infrastructure decision and governance platform. It combines read-only AWS data, CloudWatch metrics, Cost Explorer, Terraform plans, Infracost, deterministic rules, and an explanation layer in a single dashboard.
+**[Try the public demo](https://cloudops-ai-roan.vercel.app/?demo=1)** (sample data, no sign-in) · [Case study](docs/case-study.md) · [Architecture](docs/architecture.md) · [Decisions](docs/adr/README.md) · [Threat model](docs/threat-model.md)
 
-## Problem Statement
+![Governance findings in the demo](docs/images/governance.png)
 
-Cloud infrastructure decisions span operational data, cost impact, utilization, policy, and infrastructure-as-code changes. Teams need a concise, auditable way to review those signals without handing infrastructure control to an automated system.
+## Highlights
 
-## Solution
-
-CloudOps AI discovers EC2 resources, reads available utilization and cost data, detects optimization and governance findings, and presents evidence and recommendations for human review. It does not create, modify, terminate, or apply AWS or Terraform resources.
+- **Evidence, not guesses.** Each finding is `CONFIRMED`, `POTENTIAL` or `INSUFFICIENT_EVIDENCE`. A denied permission is reported as unknown and names the action to grant; missing metrics are never read as zero.
+- **AI that can't lie its way through.** Rules detect, a model only rewrites, and the validator rejects unseen figures, ids, savings claims and destructive advice. An offline evaluation in CI checks it.
+- **Fix-first plan and fix commands.** Per-resource ordering and AWS CLI steps to record, change, verify and undo, each labelled `read_only`, `safe`, `disruptive` or `destructive`.
+- **No AWS keys.** The API assumes a read-only role through Vercel OIDC, and the role, trust and Vercel projects are Terraform.
+- **$0 a month.** Serverless hosting with database-counted caps on every billed API.
 
 ## Architecture
 
-```text
-AWS EC2 + CloudWatch + Cost Explorer
-                 |
-             FastAPI API
-                 |
-       Deterministic decision engine
-                 |
-          AI explanation layer
-                 |
-          React/Vite dashboard
+```mermaid
+flowchart LR
+    user([Browser]) --> web[React + Vite console]
+    web -->|same-origin /api| api[FastAPI]
+    api --> db[(Postgres)]
+    api -->|OIDC to read-only role| aws[EC2, CloudWatch, S3, RDS, Cost Explorer]
+    api -.->|optional, validated| llm[LLM]
 ```
 
-## How It Works
+The details, sequence and deployment diagrams are in [docs/architecture.md](docs/architecture.md).
 
-1. The backend reads AWS resources, metrics, and billing data through boto3.
-2. The decision engine evaluates structured data with deterministic rules.
-3. The AI layer explains findings, context, trade-offs, and risk; it does not make or execute infrastructure decisions.
-4. Terraform plan and Infracost payloads can be submitted to the read-only IaC analysis endpoint for cost-aware human review.
+## Technology stack
 
-## Technology Stack
+| Area | Tools |
+| --- | --- |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2, Alembic, boto3, Argon2 |
+| Frontend | React 19, Vite, axios, Recharts, Lucide |
+| Data | Postgres (Neon) in production, SQLite for local work and tests |
+| AI | Any OpenAI-compatible API or local Ollama, optional |
+| Infrastructure | Vercel, AWS IAM with OIDC, Terraform, Docker, docker compose, nginx |
+| Quality | pytest and coverage, Ruff, mypy, Vitest and Testing Library, Playwright, terraform test, pip-audit, npm audit, GitHub Actions |
 
-- React, Vite, Axios, Recharts, and Lucide React
-- FastAPI, Uvicorn, boto3, and pytest
-- Terraform plan JSON and Infracost v2.16.3-shaped scan data
-- GitHub Actions for backend tests and frontend lint/build validation
+## AWS integration
 
-## AWS Integration
+The backend only calls read APIs (17 actions, listed in [docs/iam](docs/iam/README.md)). Credentials come from, in order of preference, Vercel OIDC web identity, AssumeRole with an ExternalId, or the default boto3 chain for local work. The Security page shows which mode is active and whether long-lived keys are present.
 
-The backend uses read APIs for EC2 discovery, CloudWatch CPU metrics, and Cost Explorer. Credentials come from the standard boto3 chain: environment variables, shared AWS configuration, or an attached IAM role. No credentials are stored in the repository.
+## Terraform + Infracost workflow
 
-## Terraform + Infracost Workflow
-
-Terraform is used for plan, cost analysis, and demonstration only:
+Terraform plans are an input to review, never something this app applies:
 
 ```bash
 terraform plan -out tfplan
@@ -56,23 +54,11 @@ terraform show -json tfplan > plan.json
 infracost breakdown --path . --format json --out-file infracost.json
 ```
 
-The API accepts a Terraform plan, metrics list, and real Infracost JSON at `POST /api/iac/analyze`. The endpoint normalizes real project/resource data, preserves reported currency and costs, and never runs `terraform apply`.
+`POST /api/iac/analyze` (and `POST /api/governance/iac`, which returns the same unified findings) accepts the plan, optional metrics and Infracost JSON. `infrastructure/` holds sample artifacts for it. The app's own infrastructure lives separately in `infra/terraform` (see [Infrastructure as code](#infrastructure-as-code)).
 
-## Decision Engine
+## Console
 
-The deterministic engine detects findings such as stopped instances, missing ownership tags, underutilization, high-cost underutilization, and capacity changes in Terraform plans. Missing AWS metrics are treated as unavailable, never as fabricated zero values.
-
-## AI Explanation Layer
-
-The AI layer receives deterministic findings and produces explanations. When no AI provider is configured, the backend uses its deterministic fallback. AI has no AWS mutation tools and cannot approve or apply changes.
-
-## Dashboard
-
-The React dashboard provides Overview, Resources, Cost Analysis, AI Insights,
-IaC Review, Governance, and Settings views. It calls the FastAPI endpoints for
-real account data and renders loading, unavailable, and empty states when a
-service or permission is not available. It never fabricates cloud metrics,
-costs, resources, or savings.
+Overview, Resources, Cost Analysis, AI Insights, IaC Review, Governance, Recommendations, Security, Operations and Settings. Pages that read the AWS account need a signed-in operator; signed-out visitors get the sample-data demo. Every page renders loading, unavailable and empty states instead of inventing metrics, costs or savings.
 
 ## API Endpoints
 
@@ -98,6 +84,7 @@ backend/services/        AWS, cost, metrics, IaC, rules, and AI services
 frontend/                React/Vite dashboard
 infrastructure/          Sample Terraform plan and Infracost artifacts the analyzer reviews
 infra/terraform/         Terraform for the app's own IAM role, OIDC trust and Vercel projects
+docs/                    Architecture, decision records, threat model, case study, release guide
 .github/workflows/       Read-only CI checks
 ```
 
@@ -426,15 +413,17 @@ Set `CLOUDOPS_AI_CORS_ORIGINS` to the deployed frontend origin. The frontend cal
 
 ## Security
 
-Never commit `.env` files, AWS keys, Terraform state, plan files, or provider secrets. Use least-privilege read-only AWS permissions for demonstrations. The backend CORS allowlist is configurable, and API error responses avoid returning credentials or provider responses.
+See the [threat model](docs/threat-model.md). In short: read-only IAM, no long-lived AWS keys with OIDC, Argon2id passwords, hashed session tokens in an `HttpOnly` first-party cookie, an origin check on every state-changing request, rate limits, an audit log, and security headers. Never commit `.env` files, AWS keys, Terraform state, plan files or provider secrets.
 
 ## Limitations
 
-The current release supports EC2 discovery, CloudWatch CPU metrics, Cost
-Explorer, Terraform plan review, and Infracost normalization. It does not apply
-Terraform changes, mutate AWS resources, persist review history, or implement
-additional AWS services such as S3, RDS, or Kubernetes.
+- Scans cover the deployment's own AWS account. Workspaces can register customer roles, but scanning them is not built yet.
+- Covered services: EC2, CloudWatch CPU, S3, RDS, Cost Explorer and Terraform plans. IAM, CloudTrail, Lambda and Kubernetes are not.
+- The validator matches patterns; it cannot catch every subtle misstatement written in plain words.
+- Scans run on request, not on a schedule.
 
-## Future Scope
+More detail is in [docs/RELEASE.md](docs/RELEASE.md#6-known-limitations).
 
-Potential extensions include richer multi-resource inventory, persisted review history, additional cloud providers, and authenticated team workflows. These are intentionally outside the current read-only scope.
+## Future scope
+
+Scanning workspace accounts, scheduled scans with change notifications, more AWS services, and a second cloud provider. Automatic remediation is deliberately out of scope ([ADR 0001](docs/adr/0001-read-only-recommendation-only.md)).
