@@ -22,7 +22,7 @@ from services.governance_common import (
     is_production,
 )
 
-__all__ = ["evaluate_instance", "admin_port_exposure", "THRESHOLDS", "METRIC_HOURS"]
+__all__ = ["METRIC_HOURS", "THRESHOLDS", "admin_port_exposure", "evaluate_instance"]
 
 METRIC_HOURS = 14 * 24
 THRESHOLDS = {

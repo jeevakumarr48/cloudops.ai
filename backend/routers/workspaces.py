@@ -25,6 +25,7 @@ from core.schemas import (
     WorkspaceCreate,
     WorkspaceDetailOut,
     WorkspaceOut,
+    as_role,
 )
 from core.security import audit
 
@@ -40,10 +41,10 @@ def _detail(db: Session, access: WorkspaceAccess) -> WorkspaceDetailOut:
     return WorkspaceDetailOut(
         id=access.workspace.id,
         name=access.workspace.name,
-        role=access.role,
+        role=as_role(access.role),
         created_at=access.workspace.created_at,
         members=[
-            MemberOut(user_id=m.user_id, email=m.user.email, display_name=m.user.display_name, role=m.role)
+            MemberOut(user_id=m.user_id, email=m.user.email, display_name=m.user.display_name, role=as_role(m.role))
             for m in sorted(members, key=lambda m: m.created_at)
         ],
     )
@@ -55,7 +56,7 @@ def list_workspaces(db: Session = Depends(get_db), principal: Principal = Depend
         select(WorkspaceMember).where(WorkspaceMember.user_id == principal.user.id)
     ).all()
     return [
-        WorkspaceOut(id=m.workspace.id, name=m.workspace.name, role=m.role, created_at=m.workspace.created_at)
+        WorkspaceOut(id=m.workspace.id, name=m.workspace.name, role=as_role(m.role), created_at=m.workspace.created_at)
         for m in sorted(rows, key=lambda m: m.workspace.created_at)
     ]
 

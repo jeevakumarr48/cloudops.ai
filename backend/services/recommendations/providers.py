@@ -25,6 +25,7 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -60,6 +61,13 @@ class ProviderConfig:
         """Safe to return to clients: never includes the key."""
         return {"provider": self.name, "model": self.model,
                 "local": self.name == "ollama", "api_key_configured": bool(self.api_key)}
+
+
+def _http_url(value: str) -> str:
+    """Only http(s) endpoints: refuses file:, ftp: and other schemes urlopen accepts."""
+    if urllib.parse.urlsplit(value).scheme not in ("http", "https"):
+        raise ProviderError("CLOUDOPS_AI_BASE_URL must be an http or https URL.")
+    return value
 
 
 def config() -> Optional[ProviderConfig]:
@@ -120,6 +128,11 @@ def _parse(content: str) -> Dict[str, Any]:
     return value
 
 
+def _http_request(request: urllib.request.Request) -> urllib.request.Request:
+    _http_url(request.full_url)
+    return request
+
+
 def complete(cfg: ProviderConfig, payload: Dict[str, Any], timeout: float = 25.0) -> Dict[str, Any]:
     """One chat completion. Raises ``ProviderError``; never logs the key."""
     body = json.dumps({
@@ -134,10 +147,10 @@ def complete(cfg: ProviderConfig, payload: Dict[str, Any], timeout: float = 25.0
     headers = {"Content-Type": "application/json"}
     if cfg.api_key:
         headers["Authorization"] = "Bearer %s" % cfg.api_key
-    request = urllib.request.Request(cfg.base_url.rstrip("/") + "/chat/completions",
+    request = urllib.request.Request(cfg.base_url.rstrip("/") + "/chat/completions",  # noqa: S310 - scheme checked
                                      data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(_http_request(request), timeout=timeout) as response:  # noqa: S310 - scheme checked
             data = json.loads(response.read().decode("utf-8"))
         content = data["choices"][0]["message"]["content"]
     except urllib.error.HTTPError as error:

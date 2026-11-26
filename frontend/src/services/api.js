@@ -1,11 +1,14 @@
 import axios from 'axios'
 
+// Live AWS endpoints need operator sign-in, so they go to the same origin with
+// the session cookie, like secureApi below (Vercel rewrite in production, Vite
+// proxy locally; VITE_API_URL only sets the proxy target).
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000',
+  baseURL: '',
   timeout: 10000,
+  withCredentials: true,
 })
 
-// React talks to FastAPI only. Backend CORS configuration may be required for local development.
 export const getHealth = () => api.get('/health')
 export const getEc2Resources = () => api.get('/api/resources/ec2')
 export const getEc2Metrics = () => api.get('/api/metrics/ec2')

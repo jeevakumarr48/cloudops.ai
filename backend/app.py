@@ -1,5 +1,5 @@
-from fastapi import FastAPI
 import boto3
+from fastapi import FastAPI
 
 app = FastAPI()
 

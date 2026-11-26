@@ -212,11 +212,11 @@ def test_create_workspace_and_audit_trail():
     assert actions == ["workspace.create"]
 
 
-def test_legacy_endpoints_stay_anonymous(monkeypatch):
+def test_health_is_public_and_live_aws_data_is_not(monkeypatch):
     monkeypatch.setattr(main, "discover_ec2_instances", lambda region=None: [])
     client = new_client()
     assert client.get("/health").status_code == 200
-    assert client.get("/api/resources/ec2").json() == {"total_instances": 0, "instances": []}
+    assert client.get("/api/resources/ec2").status_code == 401
 
 
 def test_no_database_on_serverless_gives_clean_503(monkeypatch):

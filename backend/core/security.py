@@ -9,12 +9,13 @@ import hashlib
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, cast
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from fastapi import Request
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -123,11 +124,11 @@ def consume_key(db: Session, key: str, limit: int, window_start: datetime) -> bo
     if limit <= 0:
         return False
     for _ in range(3):
-        result = db.execute(
+        result = cast(CursorResult, db.execute(
             update(UsageCounter)
             .where(UsageCounter.key == key, UsageCounter.count < limit)
             .values(count=UsageCounter.count + 1)
-        )
+        ))
         if result.rowcount == 1:
             db.commit()
             return True

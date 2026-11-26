@@ -416,3 +416,11 @@ def test_writes_require_operator(operator):
     other.post("/api/auth/register", json={"email": "viewer@example.com", "password": PASSWORD})
     assert other.post("/api/ai/recommendations/%s/feedback" % rid, json={"decision": "accepted"}).status_code == 403
     assert other.post("/api/ai/analyze", json={}).status_code == 403
+
+
+def test_provider_refuses_non_http_urls(monkeypatch):
+    monkeypatch.setenv("CLOUDOPS_AI_PROVIDER", "ollama")
+    monkeypatch.setenv("CLOUDOPS_AI_BASE_URL", "file:///etc")
+    cfg = providers.config()
+    with pytest.raises(providers.ProviderError, match="http or https"):
+        providers.complete(cfg, {"draft": {}})

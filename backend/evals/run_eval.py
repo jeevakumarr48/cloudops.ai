@@ -152,7 +152,7 @@ def run(live: bool = False) -> Dict[str, Any]:
     return report
 
 
-def main(argv: List[str] = None) -> int:
+def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--live", action="store_true", help="also call the configured AI provider")
     parser.add_argument("--json", metavar="PATH", help="write the full report as JSON")

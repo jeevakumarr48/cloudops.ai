@@ -28,14 +28,15 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core import aws_session
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
+from core import aws_session
+
 __all__ = [
     "S3AccessError",
-    "discover_s3_buckets",
     "clear_cache",
+    "discover_s3_buckets",
 ]
 
 _DENIED_CODES = {

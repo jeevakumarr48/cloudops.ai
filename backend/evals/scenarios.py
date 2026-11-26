@@ -57,7 +57,7 @@ def s3_bucket(name: str, **checks) -> Dict[str, Any]:
 
 
 def rds_record(**overrides) -> Dict[str, Any]:
-    db = {
+    db: Dict[str, Any] = {
         "identifier": "orders-db", "engine": "postgres", "instance_class": "db.m6g.large",
         "status": "available", "region": "us-east-1", "multi_az": False,
         "publicly_accessible": False, "storage_encrypted": True, "storage_type": "gp3",

@@ -105,7 +105,8 @@ def get_engine() -> Engine:
 
 def session_factory() -> sessionmaker:
     get_engine()
-    assert _session_factory is not None
+    if _session_factory is None:  # get_engine() raises DatabaseUnavailable before this can happen
+        raise DatabaseUnavailable("No database is configured.")
     return _session_factory
 
 
@@ -117,7 +118,7 @@ def get_db() -> Iterator[Session]:
         raise HTTPException(
             status_code=503,
             detail="Accounts and workspaces are not available on this deployment yet.",
-        )
+        ) from None
     db = factory()
     try:
         yield db

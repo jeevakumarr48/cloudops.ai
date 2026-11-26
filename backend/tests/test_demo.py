@@ -4,8 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
-from core.models import GovernanceFinding, RecommendationRecord
 from core.database import session_factory
+from core.models import GovernanceFinding, RecommendationRecord
 from services import demo, governance_engine
 from services.recommendations import providers
 

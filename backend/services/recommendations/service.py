@@ -26,8 +26,8 @@ from core.models import RecommendationFeedback, RecommendationRecord, utcnow
 from core.security import consume_key
 from services.governance_common import SEVERITY_ORDER
 from services.recommendations import fix_commands, providers, templates, validator
-from services.recommendations.plan import fix_first_plan
 from services.recommendations.context import build_bundles
+from services.recommendations.plan import fix_first_plan
 from services.recommendations.schema import LLMRewrite, Recommendation
 
 logger = logging.getLogger("cloudops.recommendations")
@@ -141,7 +141,7 @@ def list_recommendations(findings: List[Dict[str, Any]], db: Optional[Session], 
 
 def posture_summary(recs: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Deterministic overview; every sentence is a count of real findings."""
-    by_severity = {level: 0 for level in SEVERITY_ORDER}
+    by_severity = dict.fromkeys(SEVERITY_ORDER, 0)
     for rec in recs:
         by_severity[rec["severity"]] += 1
     confirmed_security = sum(1 for r in recs if r["category"] == "SECURITY" and r["evidence_state"] == "CONFIRMED")

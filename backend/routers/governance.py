@@ -100,7 +100,7 @@ def summary(response: Response, refresh: bool = False):
 def summary_payload(result: Dict[str, Any]) -> Dict[str, Any]:
     active = [f for f in result["findings"] if f["lifecycle"]["status"] not in ("false_positive",)]
     by = lambda key, keys: {k: sum(1 for f in active if f[key] == k) for k in keys}  # noqa: E731
-    by_state = {state: 0 for state in EVIDENCE_STATES}
+    by_state = dict.fromkeys(EVIDENCE_STATES, 0)
     for evaluation in result["evaluations"]:
         by_state[evaluation["evidence_state"]] += 1
     resource_types = sorted({f["resource_type"] for f in result["evaluations"]})

@@ -17,11 +17,12 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from core import aws_session
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-__all__ = ["RDSAccessError", "discover_rds_instances", "clear_cache", "METRIC_WINDOW_DAYS"]
+from core import aws_session
+
+__all__ = ["METRIC_WINDOW_DAYS", "RDSAccessError", "clear_cache", "discover_rds_instances"]
 
 METRIC_WINDOW_DAYS = 14
 _PERIOD_SECONDS = 3600
@@ -134,13 +135,13 @@ def _metrics(region: Optional[str], identifier: str) -> Dict[str, Any]:
         client = _client("cloudwatch", region)
         token = None
         while True:
-            kwargs = dict(MetricDataQueries=queries, StartTime=start, EndTime=end, ScanBy="TimestampDescending")
+            kwargs = {"MetricDataQueries": queries, "StartTime": start, "EndTime": end, "ScanBy": "TimestampDescending"}
             if token:
                 kwargs["NextToken"] = token
             response = client.get_metric_data(**kwargs)
             for item in response.get("MetricDataResults", []):
                 values.setdefault(item.get("Id"), []).extend(
-                    zip(item.get("Timestamps") or [], item.get("Values") or [])
+                    zip(item.get("Timestamps") or [], item.get("Values") or [], strict=False)
                 )
             token = response.get("NextToken")
             if not token:

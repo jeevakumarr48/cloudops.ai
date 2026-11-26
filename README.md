@@ -1,5 +1,7 @@
 # CloudOps AI
 
+[![CloudOps AI checks](https://github.com/jeevakumarr48/cloudops.ai/actions/workflows/cloudops-check.yml/badge.svg)](https://github.com/jeevakumarr48/cloudops.ai/actions/workflows/cloudops-check.yml)
+
 ## Overview
 
 CloudOps AI is an AI-assisted cloud infrastructure decision and governance platform. It combines read-only AWS data, CloudWatch metrics, Cost Explorer, Terraform plans, Infracost, deterministic rules, and an explanation layer in a single dashboard.
@@ -74,19 +76,19 @@ costs, resources, or savings.
 
 ## API Endpoints
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/` | Service banner |
-| GET | `/health` | Health check |
-| GET | `/api/resources/ec2` | EC2 inventory |
-| GET | `/api/metrics/ec2` | CloudWatch CPU metrics |
-| GET | `/api/costs` | Cost Explorer summary |
-| GET | `/api/insights` | Decision findings and explanations |
-| GET | `/api/overview` | Dashboard summary |
-| GET | `/api/recommendations` | Backward-compatible recommendation response |
-| POST | `/api/iac/analyze` | Terraform plan and Infracost analysis |
+| Method | Path | Access | Purpose |
+|---|---|---|---|
+| GET | `/` | public | Service banner |
+| GET | `/health` | public | Health check |
+| GET | `/api/resources/ec2` | operator | EC2 inventory |
+| GET | `/api/metrics/ec2` | operator | CloudWatch CPU metrics |
+| GET | `/api/costs`, `/api/costs/forecast` | operator | Cost Explorer summary and forecast (billed; database-cached and capped) |
+| GET | `/api/insights` | operator | Decision findings and explanations |
+| GET | `/api/overview` | operator | Dashboard summary |
+| GET | `/api/recommendations` | operator | Backward-compatible recommendation response |
+| POST | `/api/iac/analyze` | public | Terraform plan and Infracost analysis of a submitted plan |
 
-Unavailable AWS services return structured unavailable responses. The dashboard shows unavailable states instead of inventing metrics or costs.
+Endpoints that read the deployment's AWS account need a signed-in operator (`CLOUDOPS_OPERATOR_EMAILS`); signed-out visitors can use the public demo instead. Their responses are `private, no-store`, so a CDN never shares them. `CLOUDOPS_PUBLIC_SECURITY_FINDINGS=true` makes them public again (and re-enables CDN caching of cost responses) for a deployment that intends that. Unavailable AWS services return structured unavailable responses. The dashboard shows unavailable states instead of inventing metrics or costs.
 
 ## Project Structure
 
@@ -126,7 +128,7 @@ Copy `backend/.env.example` and `frontend/.env.example` to local environment fil
 | Variable | Required | Purpose |
 |---|---|---|
 | AWS credential chain | For AWS data | Standard boto3 credentials and region |
-| `VITE_API_URL` | No | FastAPI base URL for the browser |
+| `VITE_API_URL` | No | Local development only: the API the Vite dev server proxies `/api` to (default `http://127.0.0.1:8000`). The browser always calls `/api` on its own origin. |
 | `CLOUDOPS_AI_CORS_ORIGINS` | No | Comma-separated allowed frontend origins |
 | `CLOUDOPS_AI_API_KEY` or `OPENAI_API_KEY` | No | Optional AI explanation provider |
 | `CLOUDOPS_AI_BASE_URL` / `CLOUDOPS_AI_MODEL` | No | Optional provider configuration |
@@ -363,16 +365,24 @@ instance shares them, and billed requests are capped per month
 (`CLOUDOPS_CE_MONTHLY_CALL_LIMIT`). When the cap is reached the most recent real
 snapshot is served; nothing is estimated.
 
-## Testing
+## Testing and quality gates
 
-```bash
-python -m pytest backend/tests -q
-cd frontend
-npm run lint
-npm run build
-```
+Every push and pull request runs these in CI (`.github/workflows/cloudops-check.yml`). None of them need AWS credentials or an AI provider.
 
-The backend tests use mocked structured data and do not create AWS resources.
+| Gate | Tool | Command (run locally) |
+|---|---|---|
+| Lint, including security rules | ruff (pyflakes, pycodestyle, isort, bugbear, bandit, simplify) | `cd backend && ruff check . ../scripts` |
+| Types | mypy | `cd backend && mypy .` |
+| Backend tests, coverage must stay at or above 90% | pytest, pytest-cov | `cd backend && python -m pytest tests --cov=.` |
+| Recommendation quality (grounding, rejection of invented figures) | offline evaluation | `cd backend && python -m evals.run_eval` |
+| Migrations apply and match the models | Alembic | `alembic upgrade head && alembic check` |
+| Dependency vulnerabilities | pip-audit, npm audit | `pip-audit -r backend/requirements.txt`, `npm audit --omit=dev` |
+| Frontend lint | ESLint | `cd frontend && npm run lint` |
+| Unit and component tests | Vitest, Testing Library | `cd frontend && npm test` |
+| End-to-end, desktop and phone | Playwright against the real API on SQLite | `cd frontend && npm run test:e2e` |
+| Terraform formatting | terraform fmt | never plans or applies |
+
+Install the tools with `pip install -r backend/requirements-dev.txt` and `npm ci`. The end-to-end run starts the API with fake AWS credentials and `AWS_ENDPOINT_URL` pointed at a closed local port, so no request can reach AWS. Modules that predate type checking (older discovery and rule code) are listed as type debt in `backend/pyproject.toml`.
 
 ## Deployment
 
@@ -384,7 +394,7 @@ Deploy the services separately. Start the backend with:
 uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
-Set `CLOUDOPS_AI_CORS_ORIGINS` to the deployed frontend origin and set the frontend build variable `VITE_API_URL` to the deployed backend URL. The frontend is a static Vite build (`npm run build`, output in `frontend/dist`). No deployment step runs Terraform or changes AWS infrastructure.
+Set `CLOUDOPS_AI_CORS_ORIGINS` to the deployed frontend origin. The frontend calls `/api` on its own origin and `frontend/vercel.json` rewrites it to the API, so the session cookie is first-party; do not point `VITE_API_URL` at the API in production. The frontend is a static Vite build (`npm run build`, output in `frontend/dist`). No deployment step runs Terraform or changes AWS infrastructure.
 
 ## Security
 

@@ -19,6 +19,7 @@ import http.cookiejar
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional, Tuple
 
@@ -27,6 +28,8 @@ RESULTS = []
 
 class Client:
     def __init__(self, base: str):
+        if urllib.parse.urlsplit(base).scheme not in ("http", "https"):
+            raise SystemExit("base_url must start with http:// or https://")
         self.base = base.rstrip("/")
         self.jar = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
@@ -34,7 +37,7 @@ class Client:
     def call(self, method: str, path: str, body: Optional[Dict[str, Any]] = None,
              headers: Optional[Dict[str, str]] = None) -> Tuple[int, Dict[str, str], Any]:
         data = json.dumps(body).encode("utf-8") if body is not None else None
-        request = urllib.request.Request(self.base + path, data=data, method=method)
+        request = urllib.request.Request(self.base + path, data=data, method=method)  # noqa: S310 - scheme checked in __init__
         request.add_header("Accept", "application/json")
         request.add_header("User-Agent", "cloudops-smoke-test")
         if data is not None:
@@ -69,7 +72,7 @@ def main(argv=None) -> int:
     parser.add_argument("base_url")
     parser.add_argument("--email", help="operator account to test signed-in pages")
     parser.add_argument("--password", help="omit to be prompted")
-    parser.add_argument("--include-billed", action="store_true", help="also call /api/costs (Cost Explorer, cached)")
+    parser.add_argument("--include-billed", action="store_true", help="with --email, also call /api/costs (Cost Explorer, cached)")
     args = parser.parse_args(argv)
     client = Client(args.base_url)
 
@@ -79,7 +82,10 @@ def main(argv=None) -> int:
     check("security headers", headers.get("x-content-type-options") == "nosniff" and "x-frame-options" in headers)
 
     status, _, body = client.call("GET", "/api/resources/ec2")
-    check("EC2 inventory responds with JSON", status in (200, 503) and isinstance(body, dict), "HTTP %s" % status)
+    if status in (200, 503):
+        note("live AWS endpoints are public (CLOUDOPS_PUBLIC_SECURITY_FINDINGS=true)")
+    else:
+        check("live AWS endpoints private when signed out", status == 401 and isinstance(body, dict), "HTTP %s" % status)
 
     status, _, body = client.call("GET", "/api/auth/me")
     accounts = status != 503
@@ -105,10 +111,6 @@ def main(argv=None) -> int:
     check("cross-site write refused", status == 403 and isinstance(body, dict) and body.get("code") == "origin_not_allowed",
           "HTTP %s" % status)
 
-    if args.include_billed:
-        status, headers, body = client.call("GET", "/api/costs")
-        check("costs endpoint (billed, cached)", status in (200, 503), "HTTP %s, cache %s" % (status, headers.get("x-vercel-cache", "n/a")))
-
     if args.email and accounts:
         password = args.password or getpass.getpass("Password for %s: " % args.email)
         status, _, body = client.call("POST", "/api/auth/login", body={"email": args.email, "password": password})
@@ -117,6 +119,14 @@ def main(argv=None) -> int:
             check("session cookie works through this host", status == 200, "HTTP %s" % status)
             operator = bool(me and me.get("is_operator"))
             check("account is an operator", operator, "add it to CLOUDOPS_OPERATOR_EMAILS" if not operator else "")
+            if operator:
+                status, _, body = client.call("GET", "/api/resources/ec2")
+                check("EC2 inventory (signed in)", status in (200, 503) and isinstance(body, dict), "HTTP %s" % status)
+            if operator and args.include_billed:
+                status, headers, _ = client.call("GET", "/api/costs")
+                check("costs endpoint (billed; database-cached, private)",
+                      status == 503 or (status == 200 and headers.get("cache-control") == "private, no-store"),
+                      "HTTP %s" % status)
             if operator:
                 status, _, summary = client.call("GET", "/api/governance/summary")
                 if check("governance summary", status == 200, "HTTP %s" % status):

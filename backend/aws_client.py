@@ -15,14 +15,15 @@ import os
 import threading
 import time
 
-from core import aws_session
 from botocore.exceptions import BotoCoreError, ClientError
+
+from core import aws_session
 
 __all__ = [
     "AWSAccessError",
-    "create_ec2_client",
     "create_cloudwatch_client",
     "create_cost_explorer_client",
+    "create_ec2_client",
     "discover_ec2_instances",
 ]
 

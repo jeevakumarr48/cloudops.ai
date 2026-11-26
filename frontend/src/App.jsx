@@ -51,7 +51,7 @@ function App() {
       <Sidebar activePage={activePage} onNavigate={navigate} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="app-main"><TopBar onMenu={() => setSidebarOpen(true)} onScan={() => setScanRequested(true)} session={session} onSignIn={() => setAuthOpen(true)} />
         <DemoBanner />
-        {!demo && <div hidden={Boolean(ConsolePage)}><Dashboard activePage={activePage} /></div>}
+        {!demo && <div hidden={Boolean(ConsolePage)}><Dashboard key={sessionKey} activePage={activePage} onSignIn={() => setAuthOpen(true)} /></div>}
         {demoOnly && <DemoNotice key={activePage} page={activePage} onNavigate={navigate} />}
         {ConsolePage && <ConsolePage key={`${activePage}:${sessionKey}`} isOperator={session.isOperator && !demo} onSignIn={() => setAuthOpen(true)} sessionKey={sessionKey} />}
       </div>

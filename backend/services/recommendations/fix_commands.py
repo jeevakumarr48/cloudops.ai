@@ -279,7 +279,7 @@ def _rds_gp3(f, r):
 # --- EC2 --------------------------------------------------------------------
 
 def _ec2_ports(f, r):
-    opened = []
+    opened: List[tuple] = []
     for e in f.get("evidence") or []:
         for group, service, port in _OPEN_PORT_RE.findall(e.get("observation") or ""):
             if (group, port) not in [(g, p) for g, _, p in opened]:
@@ -402,7 +402,7 @@ def supported_rules() -> List[str]:
 def fix_for(finding: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Return the command plan for a finding, or None when the fix belongs
     elsewhere (Terraform changes) or there is not enough evidence to act."""
-    builder = _BUILDERS.get(finding.get("rule_id"))
+    builder = _BUILDERS.get(str(finding.get("rule_id")))
     if builder is None or finding.get("evidence_state") not in ("CONFIRMED", "POTENTIAL"):
         return None
     plan = builder(finding, _region(finding))

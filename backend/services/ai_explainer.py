@@ -19,10 +19,11 @@ import os
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional
 
-__all__ = ["explain_findings", "build_fallback_explanation"]
+__all__ = ["build_fallback_explanation", "explain_findings"]
 
 # LLM explanations are reused while the findings are unchanged, so a
 # dashboard refresh never triggers a new provider call. Deterministic
@@ -113,7 +114,7 @@ def _call_llm(config: Dict[str, str], findings: List[Dict]) -> Dict:
         }
     ).encode("utf-8")
 
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # noqa: S310 - scheme checked before opening
         config["base_url"].rstrip("/") + "/chat/completions",
         data=payload,
         headers={
@@ -122,7 +123,9 @@ def _call_llm(config: Dict[str, str], findings: List[Dict]) -> Dict:
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=25) as response:
+    if urllib.parse.urlsplit(request.full_url).scheme not in ("http", "https"):
+        raise ValueError("CLOUDOPS_AI_BASE_URL must be an http or https URL.")
+    with urllib.request.urlopen(request, timeout=25) as response:  # noqa: S310 - scheme checked above
         body = json.loads(response.read().decode("utf-8"))
     content = body["choices"][0]["message"]["content"]
     return json.loads(content)

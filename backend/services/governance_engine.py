@@ -24,12 +24,13 @@ Priority score (0-100, deterministic; the AI layer never changes it)::
 from __future__ import annotations
 
 import copy
+import functools
 import logging
 import math
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -113,13 +114,13 @@ def score(finding: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _run(name: str, fn: Callable[[], List[Dict[str, Any]]], expected: Tuple[type, ...]) -> Dict[str, Any]:
+def _run(name: str, fn: Callable[[], List[Dict[str, Any]]], expected: Tuple[Type[BaseException], ...]) -> Dict[str, Any]:
     try:
         evaluations = fn()
         return {"status": "ok", "error": None, "evaluations": evaluations}
     except expected as error:
         return {"status": "unavailable", "error": str(error), "evaluations": []}
-    except Exception:  # noqa: BLE001 - one broken source must not break the rest
+    except Exception:
         logger.exception("Governance source %s failed", name)
         return {"status": "unavailable", "error": "Unexpected error while collecting %s data." % name, "evaluations": []}
 
@@ -197,7 +198,7 @@ def _collect(refresh: bool, sources: Optional[List[str]]) -> Dict[str, Any]:
         "cost": (_cost_source, (CostServiceError,)),
     }
     selected = [s for s in (sources or SOURCES) if s in runners]
-    results = {name: _run(name, lambda fn=runners[name][0]: fn(refresh), runners[name][1]) for name in selected}
+    results = {name: _run(name, functools.partial(runners[name][0], refresh), runners[name][1]) for name in selected}
     evaluations: List[Dict[str, Any]] = []
     for name, result in results.items():
         for evaluation in result["evaluations"]:
@@ -219,15 +220,20 @@ def _aware(value: Optional[datetime]) -> Optional[datetime]:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
+def _iso(value: Optional[datetime]) -> Optional[str]:
+    aware = _aware(value)
+    return aware.isoformat() if aware else None
+
+
 def _lifecycle(row: Optional[GovernanceFinding], now: datetime, persisted: bool) -> Dict[str, Any]:
     if row is None:
         return {"status": "open", "first_detected": now.isoformat(), "last_detected": now.isoformat(),
                 "resolved_at": None, "times_reopened": 0, "status_note": None, "persisted": persisted}
     return {
         "status": row.status,
-        "first_detected": _aware(row.first_detected).isoformat(),
-        "last_detected": _aware(row.last_detected).isoformat(),
-        "resolved_at": _aware(row.resolved_at).isoformat() if row.resolved_at else None,
+        "first_detected": _iso(row.first_detected),
+        "last_detected": _iso(row.last_detected),
+        "resolved_at": _iso(row.resolved_at),
         "times_reopened": row.times_reopened,
         "status_note": row.status_note,
         "persisted": persisted,

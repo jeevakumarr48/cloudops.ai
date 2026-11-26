@@ -13,8 +13,10 @@ if BACKEND_DIR not in sys.path:
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from core import database  # noqa: E402
-from core import models  # noqa: E402,F401  (registers tables)
+from core import (  # noqa: E402
+    database,
+    models,  # noqa: F401  (registers tables)
+)
 
 
 @pytest.fixture(autouse=True)

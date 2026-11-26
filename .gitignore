@@ -36,3 +36,8 @@ plan.json
 *.db
 *.db-journal
 eval-report.json
+backend/e2e.sqlite3
+
+# Coverage data
+.coverage
+coverage.xml

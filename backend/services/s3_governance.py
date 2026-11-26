@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional
 from services.governance_common import (
     CONFIRMED,
     DATA_UNAVAILABLE,
-    FINDING_STATES,
     INSUFFICIENT_EVIDENCE,
     NO_ISSUE,
     POTENTIAL,
@@ -31,8 +30,12 @@ from services.governance_common import (
 )
 
 __all__ = [
-    "CONFIRMED", "POTENTIAL", "INSUFFICIENT_EVIDENCE", "NO_ISSUE", "DATA_UNAVAILABLE",
+    "CONFIRMED",
+    "DATA_UNAVAILABLE",
+    "INSUFFICIENT_EVIDENCE",
     "LIFECYCLE_SIZE_THRESHOLD_BYTES",
+    "NO_ISSUE",
+    "POTENTIAL",
     "evaluate_bucket",
     "summarize",
 ]
@@ -106,7 +109,8 @@ def _rule_public_policy(bucket, effective) -> Dict:
         "Enable all four S3 Block Public Access settings on the bucket.",
     ]
     if effective.get("RestrictPublicBuckets") is True:
-        ev.cite("s3:GetPublicAccessBlock", "RestrictPublicBuckets is enabled, which limits the policy to AWS principals and authorized users in this account.")
+        ev.cite("s3:GetPublicAccessBlock",
+                "RestrictPublicBuckets is enabled, which limits the policy to AWS principals and authorized users in this account.")
         return ev.result(
             POTENTIAL, "MEDIUM",
             "The policy is written to be public, but Block Public Access currently restricts it. Removing that setting would expose the bucket.",
@@ -238,7 +242,8 @@ def _rule_lifecycle(bucket) -> Dict:
         return _unavailable(ev, "lifecycle configuration", check, "s3:GetLifecycleConfiguration")
 
     if size is not None:
-        ev.cite("cloudwatch:AWS/S3 BucketSizeBytes", "Standard storage: %s (as of %s)." % (_human_bytes(size), metrics.get("as_of") or "latest datapoint"))
+        ev.cite("cloudwatch:AWS/S3 BucketSizeBytes",
+                "Standard storage: %s (as of %s)." % (_human_bytes(size), metrics.get("as_of") or "latest datapoint"))
     else:
         ev.cite("cloudwatch:AWS/S3 BucketSizeBytes", metrics.get("note") or "Storage size is unavailable.")
 
@@ -265,7 +270,7 @@ def _rule_lifecycle(bucket) -> Dict:
             INSUFFICIENT_EVIDENCE, "INFO",
             "There is no lifecycle policy, but storage size is unknown, so the cost impact cannot be judged.",
             "Check the bucket's size in the S3 console before deciding on a lifecycle policy.",
-            confidence="low", missing_information=["Current storage size."] + missing,
+            confidence="low", missing_information=["Current storage size.", *missing],
         )
     if size < LIFECYCLE_SIZE_THRESHOLD_BYTES and not versioned:
         return ev.result(NO_ISSUE)

@@ -81,7 +81,8 @@ class Evaluation:
         confidence: str = "high",
         missing_information: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        assert state in EVIDENCE_STATES
+        if state not in EVIDENCE_STATES:
+            raise ValueError("Unknown evidence state: %s" % state)
         return {
             "finding_id": finding_id(self.resource_type, self.rule_id, self.resource_id),
             "rule_id": self.rule_id,
@@ -118,8 +119,8 @@ def summarize(evaluations: List[Dict[str, Any]]) -> Dict[str, Any]:
         (e for e in evaluations if e["evidence_state"] in FINDING_STATES),
         key=lambda e: (SEVERITY_ORDER.get(e["severity"], 9), e["rule_id"], e["resource_id"]),
     )
-    by_severity = {level: 0 for level in SEVERITY_ORDER}
-    by_state = {state: 0 for state in EVIDENCE_STATES}
+    by_severity = dict.fromkeys(SEVERITY_ORDER, 0)
+    by_state = dict.fromkeys(EVIDENCE_STATES, 0)
     for evaluation in evaluations:
         by_state[evaluation["evidence_state"]] += 1
     for finding in findings:

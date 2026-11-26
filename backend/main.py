@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from aws_client import AWSAccessError, discover_ec2_instances
-from core import http_security
+from core import config, http_security
 from core.authz import require_operator
 from routers import ai as ai_router
 from routers import auth as auth_router
@@ -25,11 +25,6 @@ from routers import security as security_router
 from routers import workspaces as workspaces_router
 from services.ai_explainer import explain_findings
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
-from services.rds_discovery import RDSAccessError, discover_rds_instances
-from services.rds_governance import evaluate_instance as evaluate_rds_instance
-from services.governance_common import summarize as summarize_findings
-from services.s3_discovery import S3AccessError, discover_s3_buckets
-from services.s3_governance import evaluate_bucket, summarize as summarize_s3
 from services.cost_service import (
     CostServiceError,
     get_cost_forecast,
@@ -40,12 +35,18 @@ from services.decision_engine import (
     analyze_iac_changes,
     normalize_metrics,
 )
+from services.governance_common import summarize as summarize_findings
 from services.iac_analyzer import (
     IaCPlanError,
     infracost_status,
     normalize_infracost,
     parse_plan,
 )
+from services.rds_discovery import RDSAccessError, discover_rds_instances
+from services.rds_governance import evaluate_instance as evaluate_rds_instance
+from services.s3_discovery import S3AccessError, discover_s3_buckets
+from services.s3_governance import evaluate_bucket
+from services.s3_governance import summarize as summarize_s3
 
 app = FastAPI(
     title="CloudOps AI API",
@@ -85,8 +86,17 @@ INVENTORY_CDN_SECONDS = int(os.environ.get("CLOUDOPS_INVENTORY_CDN_SECONDS", "60
 
 
 def _cdn_cache(response: Response, seconds: int) -> None:
-    """Allow Vercel's CDN (not browsers) to reuse a successful response."""
-    if seconds > 0:
+    """Allow Vercel's CDN (not browsers) to reuse a successful response.
+
+    Only when the live AWS endpoints are deliberately public
+    (CLOUDOPS_PUBLIC_SECURITY_FINDINGS=true). Behind operator sign-in a shared
+    CDN copy could be served to someone who is not signed in, so responses
+    are private; Cost Explorer spend is still bounded by the database cache
+    and monthly request cap in ``services/cost_store``.
+    """
+    if not config.public_security_findings():
+        response.headers["Cache-Control"] = "private, no-store"
+    elif seconds > 0:
         response.headers["Cache-Control"] = (
             "public, max-age=0, s-maxage=%d, stale-while-revalidate=300" % seconds
         )
@@ -175,7 +185,7 @@ def health_check():
     }
 
 
-@app.get("/api/resources/ec2")
+@app.get("/api/resources/ec2", dependencies=[Depends(require_operator)])
 def get_ec2_resources(response: Response, region: Optional[str] = None):
     raw_instances, error = _collect_instances(region)
     if error is not None:
@@ -207,7 +217,7 @@ def get_ec2_resources(response: Response, region: Optional[str] = None):
     }
 
 
-@app.get("/api/metrics/ec2")
+@app.get("/api/metrics/ec2", dependencies=[Depends(require_operator)])
 def get_ec2_metrics_endpoint(
     response: Response, hours: int = HoursParam, region: Optional[str] = None
 ):
@@ -215,7 +225,7 @@ def get_ec2_metrics_endpoint(
     if error is not None:
         return _unavailable(error)
 
-    instance_ids = [instance.get("InstanceId") for instance in raw_instances]
+    instance_ids = [i for i in (instance.get("InstanceId") for instance in raw_instances) if i]
     metrics, metrics_error = _collect_metrics(instance_ids, region, hours)
     if metrics_error is not None:
         return _unavailable(metrics_error)
@@ -228,7 +238,7 @@ def get_ec2_metrics_endpoint(
     }
 
 
-@app.get("/api/costs")
+@app.get("/api/costs", dependencies=[Depends(require_operator)])
 def get_costs(response: Response, period: str = "monthly", group_by_service: bool = True):
     try:
         result = get_cost_summary(period=period, group_by_service=group_by_service)
@@ -238,7 +248,7 @@ def get_costs(response: Response, period: str = "monthly", group_by_service: boo
     return result
 
 
-@app.get("/api/costs/forecast")
+@app.get("/api/costs/forecast", dependencies=[Depends(require_operator)])
 def get_costs_forecast(response: Response, period: str = "monthly"):
     try:
         result = get_cost_forecast(period=period)
@@ -248,13 +258,13 @@ def get_costs_forecast(response: Response, period: str = "monthly"):
     return result
 
 
-@app.get("/api/insights")
+@app.get("/api/insights", dependencies=[Depends(require_operator)])
 def get_insights(response: Response, hours: int = HoursParam, region: Optional[str] = None):
     raw_instances, error = _collect_instances(region)
     if error is not None:
         return _unavailable(error)
 
-    instance_ids = [instance.get("InstanceId") for instance in raw_instances]
+    instance_ids = [i for i in (instance.get("InstanceId") for instance in raw_instances) if i]
     metrics, metrics_error = _collect_metrics(instance_ids, region, hours)
 
     metrics_by_instance = {
@@ -278,7 +288,7 @@ def get_insights(response: Response, hours: int = HoursParam, region: Optional[s
     return payload
 
 
-@app.get("/api/overview")
+@app.get("/api/overview", dependencies=[Depends(require_operator)])
 def get_overview(response: Response, hours: int = HoursParam, period: str = "monthly"):
     # Resources
     raw_instances, resources_error = _collect_instances()
@@ -300,7 +310,7 @@ def get_overview(response: Response, hours: int = HoursParam, period: str = "mon
             "by_state": by_state,
         }
 
-        instance_ids = [instance.get("InstanceId") for instance in raw_instances]
+        instance_ids = [i for i in (instance.get("InstanceId") for instance in raw_instances) if i]
         metrics, metrics_error = _collect_metrics(instance_ids, None, hours)
         metrics_by_instance = {
             metric["instance_id"]: metric for metric in metrics if metric.get("instance_id")
@@ -330,7 +340,7 @@ def get_overview(response: Response, hours: int = HoursParam, period: str = "mon
     }
 
 
-@app.get("/api/recommendations")
+@app.get("/api/recommendations", dependencies=[Depends(require_operator)])
 def get_recommendations(response: Response, region: Optional[str] = None):
     raw_instances, error = _collect_instances(region)
     if error is not None:

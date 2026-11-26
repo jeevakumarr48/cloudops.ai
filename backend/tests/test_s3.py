@@ -1,7 +1,6 @@
 """S3 discovery and governance tests against moto (no real AWS)."""
 
 import json
-import os
 
 import boto3
 import pytest

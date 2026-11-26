@@ -33,7 +33,8 @@ _NUM = r"\d[\d,]*(?:\.\d+)?"
 _FIGURE_RES = [
     re.compile(r"(?:\$|usd\s?|us\$)\s?(%s)" % _NUM, re.IGNORECASE),
     re.compile(r"(%s)\s?(?:%%|percent\b|usd\b|dollars?\b)" % _NUM, re.IGNORECASE),
-    re.compile(r"(%s)\s?(?:[kmgtp]i?b|bytes?|iops|ms|milliseconds?|seconds?|minutes?|hours?|hrs?|days?|weeks?|months?|years?|vcpus?|cpus?|instances?|x)\b" % _NUM, re.IGNORECASE),
+    re.compile(r"(%s)\s?(?:[kmgtp]i?b|bytes?|iops|ms|milliseconds?|seconds?|minutes?|hours?|hrs?|days?|weeks?|months?"
+               r"|years?|vcpus?|cpus?|instances?|x)\b" % _NUM, re.IGNORECASE),
     re.compile(r"\b(\d+\.\d+)\b"),
 ]
 

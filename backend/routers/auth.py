@@ -11,7 +11,7 @@ from core import config
 from core.authz import Principal, current_principal, require_json
 from core.database import get_db
 from core.models import ROLE_ADMIN, User, Workspace, WorkspaceMember
-from core.schemas import LoginRequest, MembershipOut, MeOut, RegisterRequest, UserOut
+from core.schemas import LoginRequest, MembershipOut, MeOut, RegisterRequest, UserOut, as_role
 from core.security import (
     SESSION_COOKIE,
     audit,
@@ -56,7 +56,7 @@ def _me(db: Session, user: User) -> MeOut:
     return MeOut(
         user=UserOut(id=user.id, email=user.email, display_name=user.display_name),
         workspaces=[
-            MembershipOut(workspace_id=m.workspace_id, workspace_name=m.workspace.name, role=m.role)
+            MembershipOut(workspace_id=m.workspace_id, workspace_name=m.workspace.name, role=as_role(m.role))
             for m in sorted(rows, key=lambda m: m.workspace.created_at)
         ],
         is_operator=user.email in config.operator_emails(),
@@ -83,7 +83,7 @@ def register(
         db.flush()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+        raise HTTPException(status_code=409, detail="An account with this email already exists.") from None
 
     # Every new user gets a personal workspace they administer.
     workspace = Workspace(name="%s's workspace" % (body.display_name or body.email.split("@")[0]), created_by=user.id)

@@ -2,7 +2,6 @@
 
 from services.ai_explainer import build_fallback_explanation, explain_findings
 
-
 SAMPLE_FINDING = {
     "resource_id": "i-123",
     "resource_type": "EC2",

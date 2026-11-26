@@ -40,7 +40,7 @@ def _origin_of(url: str) -> str:
     return "%s://%s" % (parts.scheme, parts.netloc) if parts.scheme and parts.netloc else ""
 
 
-def _envelope(request: Request, status_code: int, message: str, detail=None, code: str = None) -> JSONResponse:
+def _envelope(request: Request, status_code: int, message: str, detail=None, code: str | None = None) -> JSONResponse:
     request_id = getattr(request.state, "request_id", None)
     body = {"status": "error", "error": message, "code": code or CODES.get(status_code, "error"),
             "request_id": request_id, "detail": detail if detail is not None else message}

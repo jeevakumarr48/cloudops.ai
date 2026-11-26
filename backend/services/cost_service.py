@@ -21,10 +21,10 @@ from aws_client import COST_EXPLORER_REGION, create_cost_explorer_client
 from services import cost_store
 
 __all__ = [
-    "CostServiceError",
     "SUPPORTED_PERIODS",
-    "get_cost_summary",
+    "CostServiceError",
     "get_cost_forecast",
+    "get_cost_summary",
 ]
 
 SUPPORTED_PERIODS = ("daily", "monthly")

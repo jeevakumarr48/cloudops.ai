@@ -21,7 +21,7 @@ from services.governance_common import (
     summarize,
 )
 
-__all__ = ["evaluate_instance", "summarize", "THRESHOLDS"]
+__all__ = ["THRESHOLDS", "evaluate_instance", "summarize"]
 
 # Documented thresholds (see README).
 THRESHOLDS = {
@@ -279,7 +279,9 @@ def _rule_storage(db) -> Dict:
     if ratio < THRESHOLDS["storage_critical_free"]:
         return ev.result(
             CONFIRMED, "MEDIUM" if autoscaling else "HIGH",
-            "Less than 10%% of storage is free.%s" % (" Autoscaling should add space, up to its limit." if autoscaling else " The database stops accepting writes when storage is full."),
+            "Less than 10%% of storage is free.%s" % (
+                " Autoscaling should add space, up to its limit." if autoscaling
+                else " The database stops accepting writes when storage is full."),
             "Increase allocated storage or enable storage autoscaling, and review data growth.",
             ["Check recent growth of FreeStorageSpace.", "Increase storage or enable autoscaling with a sensible maximum."],
         )

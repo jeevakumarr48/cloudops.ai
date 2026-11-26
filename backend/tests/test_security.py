@@ -84,6 +84,7 @@ def test_validation_errors_use_envelope(operator):
 
 
 def test_legacy_error_shape_unchanged(monkeypatch):
+    monkeypatch.setenv("CLOUDOPS_PUBLIC_SECURITY_FINDINGS", "true")
     from aws_client import AWSAccessError
     monkeypatch.setattr(main, "discover_ec2_instances", lambda region=None: (_ for _ in ()).throw(AWSAccessError("no access")))
     body = TestClient(main.app).get("/api/resources/ec2").json()
@@ -91,6 +92,7 @@ def test_legacy_error_shape_unchanged(monkeypatch):
 
 
 def test_unhandled_errors_do_not_leak(monkeypatch):
+    monkeypatch.setenv("CLOUDOPS_PUBLIC_SECURITY_FINDINGS", "true")
     monkeypatch.setattr(main, "discover_ec2_instances", lambda region=None: (_ for _ in ()).throw(RuntimeError("secret=abc123")))
     response = TestClient(main.app, raise_server_exceptions=False).get("/api/resources/ec2")
     assert response.status_code == 500 and "abc123" not in response.text and response.json()["code"] == "internal_error"

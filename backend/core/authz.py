@@ -105,7 +105,7 @@ def require_operator(
     try:
         db = session_factory()()
     except DatabaseUnavailable:
-        raise HTTPException(status_code=401, detail="Sign in as a CloudOps AI operator to view this.")
+        raise HTTPException(status_code=401, detail="Sign in as a CloudOps AI operator to view this.") from None
     try:
         record = resolve_session(db, token)
         if record is None:

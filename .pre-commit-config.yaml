@@ -1,0 +1,27 @@
+# Optional local hooks: pip install pre-commit && pre-commit install
+# CI runs the same checks (see .github/workflows/cloudops-check.yml).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff
+        args: [--config, backend/pyproject.toml]
+        files: ^(backend|scripts)/
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+        exclude: ^frontend/(package-lock\.json)$
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+      - id: check-added-large-files
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd frontend && npx eslint .'
+        language: system
+        files: ^frontend/.*\.(js|jsx)$
+        pass_filenames: false

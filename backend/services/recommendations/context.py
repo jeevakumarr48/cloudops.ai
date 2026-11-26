@@ -57,7 +57,7 @@ def build_bundles(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "allowed_text": " ".join(texts),
             "has_security_finding": any(
                 f["category"] == "SECURITY" and f["evidence_state"] in ("CONFIRMED", "POTENTIAL")
-                for f in [finding] + related
+                for f in [finding, *related]
             ),
             "evidence_hash": evidence_hash(finding),
         })

@@ -63,6 +63,9 @@ FORECAST = {
 
 @pytest.fixture
 def client(monkeypatch):
+    # Response shapes are the contract under test; access control is tested in
+    # test_legacy_endpoints_need_an_operator below.
+    monkeypatch.setenv("CLOUDOPS_PUBLIC_SECURITY_FINDINGS", "true")
     monkeypatch.delenv("CLOUDOPS_AI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(main, "discover_ec2_instances", lambda region=None: list(INSTANCES))
@@ -235,3 +238,25 @@ def test_failed_responses_are_not_cached(client, monkeypatch):
     assert "cache-control" not in client.get("/api/costs").headers
     monkeypatch.setattr(main, "discover_ec2_instances", _deny)
     assert "cache-control" not in client.get("/api/resources/ec2").headers
+
+
+LIVE_AWS_PATHS = ("/api/resources/ec2", "/api/metrics/ec2", "/api/costs", "/api/costs/forecast",
+                  "/api/insights", "/api/overview", "/api/recommendations")
+
+
+@pytest.mark.parametrize("path", LIVE_AWS_PATHS)
+def test_legacy_endpoints_need_an_operator(monkeypatch, path):
+    monkeypatch.setattr(main, "discover_ec2_instances", lambda region=None: list(INSTANCES))
+    monkeypatch.setattr(main, "get_cost_summary", lambda **kwargs: dict(COST_SUMMARY))
+    response = TestClient(main.app).get(path)
+    assert response.status_code == 401 and response.json()["code"] == "unauthenticated"
+
+
+def test_signed_in_cost_responses_are_never_shared_by_the_cdn(monkeypatch):
+    monkeypatch.setenv("CLOUDOPS_COOKIE_SECURE", "false")
+    monkeypatch.setenv("CLOUDOPS_OPERATOR_EMAILS", "ops@example.com")
+    monkeypatch.setattr(main, "get_cost_summary", lambda **kwargs: dict(COST_SUMMARY))
+    operator = TestClient(main.app)
+    operator.post("/api/auth/register", json={"email": "ops@example.com", "password": "correct horse battery"})
+    response = operator.get("/api/costs")
+    assert response.status_code == 200 and response.headers["cache-control"] == "private, no-store"

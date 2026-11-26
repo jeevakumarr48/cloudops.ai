@@ -16,7 +16,7 @@ from services.governance_common import (
     Evaluation,
 )
 
-__all__ = ["evaluate_costs", "THRESHOLDS"]
+__all__ = ["THRESHOLDS", "evaluate_costs"]
 
 THRESHOLDS = {
     "min_days": 14,

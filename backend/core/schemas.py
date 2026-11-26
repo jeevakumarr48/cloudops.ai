@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -13,6 +13,13 @@ from core.security import PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH
 _EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
 
 Role = Literal["admin", "viewer"]
+
+
+def as_role(value: str) -> Role:
+    """Narrow a stored role string to the API's Role type."""
+    if value not in ("admin", "viewer"):
+        raise ValueError("Unknown role: %s" % value)
+    return cast(Role, value)
 
 
 def _normalize_email(value: str) -> str:
