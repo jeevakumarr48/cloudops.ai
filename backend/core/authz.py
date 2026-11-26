@@ -14,7 +14,8 @@ from fastapi import Cookie, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core.database import get_db
+from core import config
+from core.database import DatabaseUnavailable, get_db, session_factory
 from core.models import ROLE_ADMIN, User, UserSession, Workspace, WorkspaceMember
 from core.security import SESSION_COOKIE, resolve_session
 
@@ -88,3 +89,28 @@ def require_admin(access: WorkspaceAccess = Depends(require_member)) -> Workspac
     if not access.is_admin:
         raise HTTPException(status_code=403, detail="Workspace admin role required.")
     return access
+
+
+def require_operator(
+    request: Request,
+    token: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE),
+) -> None:
+    """Gate for security findings about the deployment's own AWS account.
+
+    Allowed when CLOUDOPS_PUBLIC_SECURITY_FINDINGS=true, or for a signed-in
+    user listed in CLOUDOPS_OPERATOR_EMAILS.
+    """
+    if config.public_security_findings():
+        return
+    try:
+        db = session_factory()()
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=401, detail="Sign in as a CloudOps AI operator to view this.")
+    try:
+        record = resolve_session(db, token)
+        if record is None:
+            raise HTTPException(status_code=401, detail="Sign in as a CloudOps AI operator to view this.")
+        if record.user.email not in config.operator_emails():
+            raise HTTPException(status_code=403, detail="Operator access required.")
+    finally:
+        db.close()

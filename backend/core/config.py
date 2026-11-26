@@ -60,3 +60,17 @@ def ce_monthly_call_limit() -> int:
     $0.75 per month, leaving headroom under the project's $1 ceiling.
     """
     return int(os.environ.get("CLOUDOPS_CE_MONTHLY_CALL_LIMIT", "75"))
+
+
+def operator_emails() -> set:
+    """Emails allowed to view governance data for the deployment's own AWS
+    account (as opposed to a workspace's connected account)."""
+    raw = os.environ.get("CLOUDOPS_OPERATOR_EMAILS", "")
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
+
+
+def public_security_findings() -> bool:
+    """Security posture (for example which buckets are public) is sensitive:
+    it is a map for attackers. It is only served anonymously when this is
+    explicitly set to true, e.g. for a demo account with harmless buckets."""
+    return os.environ.get("CLOUDOPS_PUBLIC_SECURITY_FINDINGS", "false").strip().lower() == "true"

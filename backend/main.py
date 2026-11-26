@@ -10,15 +10,18 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import Body, FastAPI, Query, Response
+from fastapi import Body, Depends, FastAPI, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from aws_client import AWSAccessError, discover_ec2_instances
+from core.authz import require_operator
 from routers import auth as auth_router
 from routers import workspaces as workspaces_router
 from services.ai_explainer import explain_findings
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
+from services.s3_discovery import S3AccessError, discover_s3_buckets
+from services.s3_governance import evaluate_bucket, summarize as summarize_s3
 from services.cost_service import (
     CostServiceError,
     get_cost_forecast,
@@ -325,6 +328,63 @@ def get_recommendations(response: Response, region: Optional[str] = None):
     return {
         "total_recommendations": len(recommendations),
         "recommendations": recommendations
+    }
+
+
+def _s3_inventory(refresh: bool):
+    try:
+        return discover_s3_buckets(refresh=refresh), None
+    except S3AccessError as error:
+        return None, error
+
+
+@app.get("/api/resources/s3", dependencies=[Depends(require_operator)])
+def get_s3_resources(response: Response, refresh: bool = False):
+    """Read-only S3 inventory with a governance summary per bucket.
+
+    Each configuration check reports ``ok``, ``not_configured``,
+    ``access_denied`` or ``error``; storage figures come only from CloudWatch
+    and are ``null`` when AWS has no datapoint.
+    """
+    inventory, error = _s3_inventory(refresh)
+    if error is not None:
+        return _unavailable(error)
+    account_bpa = inventory["account_public_access_block"]
+    for bucket in inventory["buckets"]:
+        summary = summarize_s3(evaluate_bucket(bucket, account_bpa))
+        bucket["governance"] = {
+            "findings": len(summary["findings"]),
+            "by_severity": summary["by_severity"],
+            "by_state": summary["by_state"],
+        }
+    # Never CDN-cached: access depends on who is asking.
+    response.headers["Cache-Control"] = "private, no-store"
+    return inventory
+
+
+@app.get("/api/resources/s3/{bucket_name}/governance", dependencies=[Depends(require_operator)])
+def get_s3_bucket_governance(bucket_name: str, refresh: bool = False):
+    """Every S3 rule's evaluation for one bucket, with evidence."""
+    inventory, error = _s3_inventory(refresh)
+    if error is not None:
+        return _unavailable(error)
+    bucket = next((b for b in inventory["buckets"] if b["name"] == bucket_name), None)
+    if bucket is None:
+        return JSONResponse(
+            status_code=404,
+            content={"status": "not_found", "error": "Bucket not found in the scanned account."},
+        )
+    evaluations = evaluate_bucket(bucket, inventory["account_public_access_block"])
+    summary = summarize_s3(evaluations)
+    return {
+        "status": "ok",
+        "scanned_at": inventory["scanned_at"],
+        "bucket": bucket,
+        "account_public_access_block": inventory["account_public_access_block"],
+        "evaluations": evaluations,
+        "findings": summary["findings"],
+        "by_severity": summary["by_severity"],
+        "by_state": summary["by_state"],
     }
 
 

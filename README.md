@@ -140,7 +140,44 @@ Copy `backend/.env.example` and `frontend/.env.example` to local environment fil
 | `CLOUDOPS_COOKIE_SECURE` | No | `false` only for local HTTP development; default `true` |
 | `CLOUDOPS_SESSION_DAYS` | No | Session lifetime, default 7 |
 | `CLOUDOPS_REGISTRATION_OPEN` | No | `false` disables self-registration |
+| `CLOUDOPS_OPERATOR_EMAILS` | For S3 views | Comma-separated emails allowed to see the deployment account's security findings |
+| `CLOUDOPS_PUBLIC_SECURITY_FINDINGS` | No | `true` serves S3 findings anonymously (demo accounts only); default `false` |
+| `CLOUDOPS_S3_CACHE_SECONDS` | No | S3 scan cache lifetime, default 900 |
 | `CLOUDOPS_CE_MONTHLY_CALL_LIMIT` | No | Hard monthly cap on billed Cost Explorer requests, default 75 ($0.75) |
+
+## S3 discovery and governance
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/resources/s3` | Every bucket with region, versioning, encryption, Block Public Access, policy status, ACL, lifecycle, logging, CloudWatch storage metrics and a governance summary |
+| `GET /api/resources/s3/{bucket}/governance` | All seven S3 rule evaluations for one bucket, with evidence |
+
+Security posture is sensitive (a list of public buckets is a map for
+attackers), so these endpoints are **not public** by default: they require a
+signed-in user listed in `CLOUDOPS_OPERATOR_EMAILS`. Set
+`CLOUDOPS_PUBLIC_SECURITY_FINDINGS=true` only for a demo account whose buckets
+are safe to show. Responses are never CDN-cached.
+
+Add `?refresh=true` to rescan (honoured at most once a minute). Results are
+cached for 15 minutes (`CLOUDOPS_S3_CACHE_SECONDS`).
+
+Each check reports `ok`, `not_configured`, `access_denied` or `error`. Each rule
+returns one evidence state: `CONFIRMED`, `POTENTIAL`, `INSUFFICIENT_EVIDENCE`,
+`NO_ISSUE` or `DATA_UNAVAILABLE`. Storage size comes only from CloudWatch's
+daily `BucketSizeBytes`; a missing datapoint is `null`, never zero. No S3 rule
+estimates savings.
+
+| Rule | Category | Raised when |
+|---|---|---|
+| `S3_PUBLIC_POLICY` | SECURITY | AWS reports the bucket policy is public (CRITICAL, or MEDIUM if RestrictPublicBuckets blocks it) |
+| `S3_PUBLIC_ACL` | SECURITY | ACL grants AllUsers/AuthenticatedUsers (HIGH, or LOW if IgnorePublicAcls applies) |
+| `S3_BLOCK_PUBLIC_ACCESS` | SECURITY | Any of the four settings is off at both bucket and account level |
+| `S3_DEFAULT_ENCRYPTION` | SECURITY | No default encryption rule |
+| `S3_VERSIONING` | CONFIGURATION | Versioning disabled or suspended (low confidence; depends on data) |
+| `S3_LIFECYCLE` | STORAGE | No lifecycle rules and at least 1 GiB stored or versioning on; insufficient evidence when size is unknown |
+| `S3_ACCESS_LOGGING` | GOVERNANCE | Server access logging disabled |
+
+The required permissions are in [`docs/iam/cloudops-readonly-policy.json`](docs/iam/cloudops-readonly-policy.json).
 
 ## Accounts, workspaces and the database
 
