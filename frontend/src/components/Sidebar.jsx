@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Boxes, Cloud, Cog, FileCode2, LayoutDashboard, ShieldCheck, X } from 'lucide-react'
+import { BarChart3, Bot, Boxes, Cloud, Cog, FileCode2, LayoutDashboard, Lightbulb, ShieldCheck, X } from 'lucide-react'
 import StatusPill from './ui/StatusPill'
 
 const navigation = [
@@ -8,6 +8,7 @@ const navigation = [
   ['AI Insights', Bot],
   ['IaC Review', FileCode2],
   ['Governance', ShieldCheck],
+  ['Recommendations', Lightbulb],
   ['Settings', Cog],
 ]
 

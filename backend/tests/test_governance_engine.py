@@ -213,6 +213,34 @@ def test_failed_source_never_resolves_its_findings(sources):
     assert governance_engine.resolved_findings() == []
 
 
+def test_scan_is_reused_briefly_unless_refreshed(sources, monkeypatch):
+    monkeypatch.setattr(governance_engine, "_SCAN_TTL_SECONDS", 60)
+    calls = []
+    original = governance_engine._s3_source
+    monkeypatch.setattr(governance_engine, "_s3_source", lambda refresh: calls.append(refresh) or original(refresh))
+    first = governance_engine.collect()
+    first["evaluations"].clear()  # callers get copies
+    assert len(governance_engine.collect()["evaluations"]) == 1
+    assert calls == [False]
+    governance_engine.collect(refresh=True)
+    assert calls == [False, True]
+
+
+def test_sync_retries_after_a_concurrent_insert(sources, monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+    original = governance_engine._sync_rows
+    attempts = []
+
+    def flaky(*args):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise IntegrityError("insert", {}, Exception("duplicate key"))
+        return original(*args)
+
+    monkeypatch.setattr(governance_engine, "_sync_rows", flaky)
+    assert scan()[0]["lifecycle"]["persisted"] is True and len(attempts) == 2
+
+
 def test_one_source_failing_does_not_break_others(sources):
     sources["fail"].add("ec2")
     result = governance_engine.collect()
@@ -265,6 +293,13 @@ def test_status_update_requires_operator(operator, monkeypatch):
     other.post("/api/auth/register", json={"email": "viewer@example.com", "password": PASSWORD})
     assert other.patch("/api/governance/findings/%s" % fid, json={"status": "false_positive"}).status_code == 403
     assert TestClient(main.app).patch("/api/governance/findings/%s" % fid, json={"status": "open"}).status_code == 401
+
+
+def test_me_reports_operator_flag(operator):
+    assert operator.get("/api/auth/me").json()["is_operator"] is True
+    other = TestClient(main.app)
+    other.post("/api/auth/register", json={"email": "viewer@example.com", "password": PASSWORD})
+    assert other.get("/api/auth/me").json()["is_operator"] is False
 
 
 def test_findings_are_private_by_default(sources):

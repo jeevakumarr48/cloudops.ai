@@ -293,6 +293,15 @@ python -m evals.run_eval --json report.json
 
 The offline run is part of the test suite and must pass in full. Live results are reported, not asserted, since model output varies.
 
+## Governance console
+
+The sidebar has two signed-in pages next to the original ones (which are unchanged):
+
+- **Governance**: summary counts, per-source scan status (an unavailable source is shown as unavailable, never as "no issues"), filters by category, severity, evidence state, resource type and status, and a prioritized findings table. Each row expands to evidence, missing information, the priority formula and its inputs, and lifecycle. Operators can set a status (acknowledged, accepted risk, false positive) with a note.
+- **Recommendations**: a deterministic posture summary, then one card per finding showing the 12 required fields in order, the correlation note, and any validator violations. Operators can record a decision and, when an AI provider is configured, run the optional rewrite for the top 5 findings or a single card.
+
+Sign-in uses the HttpOnly session cookie, so these pages call the API on the same origin: through the `/api` rewrite in `frontend/vercel.json` in production and through the Vite dev proxy locally (`npm run dev` proxies `/api` and `/health` to `VITE_API_URL`). Pages load data when opened or refreshed; nothing polls. A governance scan is reused for 60 seconds, so the pages share one round of AWS reads.
+
 ## Accounts, workspaces and the database
 
 The original dashboard endpoints stay public and read-only. Accounts and

@@ -67,6 +67,9 @@ class MembershipOut(BaseModel):
 class MeOut(BaseModel):
     user: UserOut
     workspaces: List[MembershipOut]
+    # True when the user may view and act on governance data for the
+    # deployment's own AWS account (CLOUDOPS_OPERATOR_EMAILS).
+    is_operator: bool = False
 
 
 class WorkspaceOut(BaseModel):

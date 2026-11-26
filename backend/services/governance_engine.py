@@ -23,8 +23,11 @@ Priority score (0-100, deterministic; the AI layer never changes it)::
 
 from __future__ import annotations
 
+import copy
 import logging
 import math
+import threading
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -158,8 +161,35 @@ def _cost_source(refresh: bool) -> List[Dict[str, Any]]:
     return cost_governance.evaluate_costs(get_cost_summary(period="daily"))
 
 
+_SCAN_TTL_SECONDS = 60
+_scan_cache: Dict[Tuple[str, ...], Tuple[float, Dict[str, Any]]] = {}
+_scan_lock = threading.Lock()
+
+
+def clear_scan_cache() -> None:
+    with _scan_lock:
+        _scan_cache.clear()
+
+
 def collect(refresh: bool = False, sources: Optional[List[str]] = None) -> Dict[str, Any]:
-    """Run every (or selected) source and return evaluations with scores."""
+    """Run every (or selected) source and return evaluations with scores.
+
+    A scan is reused for 60 seconds, so the console's summary, findings and
+    recommendations views share one round of AWS reads. ``refresh`` skips it.
+    """
+    key = tuple(sources or SOURCES)
+    now = time.monotonic()
+    with _scan_lock:
+        cached = _scan_cache.get(key)
+        if not refresh and cached and now - cached[0] < _SCAN_TTL_SECONDS:
+            return copy.deepcopy(cached[1])
+    result = _collect(refresh, sources)
+    with _scan_lock:
+        _scan_cache[key] = (time.monotonic(), result)
+    return copy.deepcopy(result)
+
+
+def _collect(refresh: bool, sources: Optional[List[str]]) -> Dict[str, Any]:
     runners = {
         "ec2": (_ec2_source, (AWSAccessError,)),
         "s3": (_s3_source, (S3AccessError,)),
@@ -204,6 +234,40 @@ def _lifecycle(row: Optional[GovernanceFinding], now: datetime, persisted: bool)
     }
 
 
+def _sync_rows(db, current, ok_sources, scope, now) -> Dict[str, GovernanceFinding]:
+    rows = {r.finding_id: r for r in db.scalars(select(GovernanceFinding).where(GovernanceFinding.scope == scope))}
+    seen = set()
+    for finding in current:
+        seen.add(finding["finding_id"])
+        row = rows.get(finding["finding_id"])
+        if row is None:
+            row = GovernanceFinding(scope=scope, finding_id=finding["finding_id"], first_detected=now,
+                                    status="open", times_reopened=0)
+            db.add(row)
+            rows[finding["finding_id"]] = row
+        elif row.status == "resolved":
+            row.status, row.resolved_at = "open", None
+            row.times_reopened = (row.times_reopened or 0) + 1
+        row.source = finding["source"]
+        row.rule_id = finding["rule_id"]
+        row.resource_type = finding["resource_type"]
+        row.resource_id = str(finding["resource_id"])[:255]
+        row.category = finding["category"]
+        row.severity = finding["severity"]
+        row.evidence_state = finding["evidence_state"]
+        row.priority_score = finding["priority"]["score"]
+        row.payload = {k: v for k, v in finding.items() if k != "lifecycle"}
+        row.last_detected = now
+    # Revalidation: a finding from a source that scanned successfully and
+    # no longer reports it is resolved automatically.
+    for finding_id, row in rows.items():
+        if finding_id not in seen and row.source in ok_sources and row.status != "resolved":
+            row.status, row.resolved_at = "resolved", now
+            row.status_note = "Condition no longer detected on %s." % now.date().isoformat()
+    db.commit()
+    return rows
+
+
 def sync(scan: Dict[str, Any], scope: str = GLOBAL_SCOPE) -> List[Dict[str, Any]]:
     """Persist findings and lifecycle; return findings with lifecycle fields.
 
@@ -221,36 +285,17 @@ def sync(scan: Dict[str, Any], scope: str = GLOBAL_SCOPE) -> List[Dict[str, Any]
             finding["lifecycle"] = _lifecycle(None, now, False)
         return current
     try:
-        rows = {r.finding_id: r for r in db.scalars(select(GovernanceFinding).where(GovernanceFinding.scope == scope))}
-        seen = set()
-        for finding in current:
-            seen.add(finding["finding_id"])
-            row = rows.get(finding["finding_id"])
-            if row is None:
-                row = GovernanceFinding(scope=scope, finding_id=finding["finding_id"], first_detected=now,
-                                        status="open", times_reopened=0)
-                db.add(row)
-                rows[finding["finding_id"]] = row
-            elif row.status == "resolved":
-                row.status, row.resolved_at = "open", None
-                row.times_reopened = (row.times_reopened or 0) + 1
-            row.source = finding["source"]
-            row.rule_id = finding["rule_id"]
-            row.resource_type = finding["resource_type"]
-            row.resource_id = str(finding["resource_id"])[:255]
-            row.category = finding["category"]
-            row.severity = finding["severity"]
-            row.evidence_state = finding["evidence_state"]
-            row.priority_score = finding["priority"]["score"]
-            row.payload = {k: v for k, v in finding.items() if k != "lifecycle"}
-            row.last_detected = now
-        # Revalidation: a finding from a source that scanned successfully and
-        # no longer reports it is resolved automatically.
-        for finding_id, row in rows.items():
-            if finding_id not in seen and row.source in ok_sources and row.status != "resolved":
-                row.status, row.resolved_at = "resolved", now
-                row.status_note = "Condition no longer detected on %s." % now.date().isoformat()
-        db.commit()
+        # Two requests can sync the same new findings at once (the console
+        # loads summary and findings in parallel); the loser of the insert
+        # race retries against the rows the winner created.
+        for attempt in (1, 2):
+            try:
+                rows = _sync_rows(db, current, ok_sources, scope, now)
+                break
+            except SQLAlchemyError:
+                db.rollback()
+                if attempt == 2:
+                    raise
         for finding in current:
             finding["lifecycle"] = _lifecycle(rows[finding["finding_id"]], now, True)
         return current

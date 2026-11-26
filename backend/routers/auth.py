@@ -59,6 +59,7 @@ def _me(db: Session, user: User) -> MeOut:
             MembershipOut(workspace_id=m.workspace_id, workspace_name=m.workspace.name, role=m.role)
             for m in sorted(rows, key=lambda m: m.workspace.created_at)
         ],
+        is_operator=user.email in config.operator_emails(),
     )
 
 
