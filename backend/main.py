@@ -7,9 +7,10 @@ performs AWS actions.
 """
 
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import Body, FastAPI
+from fastapi import Body, FastAPI, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -51,6 +52,40 @@ app.add_middleware(
 )
 
 
+# CloudWatch retains 1-hour datapoints for 455 days, but anything beyond 30
+# days is outside what the dashboard uses; bounding the window also bounds
+# the size of each GetMetricData request.
+MAX_METRIC_HOURS = 720
+HoursParam = Query(24, ge=1, le=MAX_METRIC_HOURS)
+
+# Shared CDN cache lifetimes (seconds). Cost Explorer bills $0.01 per request
+# and its data refreshes only a few times a day, so successful cost responses
+# are cached at Vercel's edge as well as in process memory. EC2 inventory is
+# cached briefly so one dashboard load does not repeat DescribeInstances.
+COST_CDN_SECONDS = int(os.environ.get("CLOUDOPS_COST_CDN_SECONDS", "86400"))
+INVENTORY_CDN_SECONDS = int(os.environ.get("CLOUDOPS_INVENTORY_CDN_SECONDS", "60"))
+
+
+def _cdn_cache(response: Response, seconds: int) -> None:
+    """Allow Vercel's CDN (not browsers) to reuse a successful response."""
+    if seconds > 0:
+        response.headers["Cache-Control"] = (
+            "public, max-age=0, s-maxage=%d, stale-while-revalidate=300" % seconds
+        )
+
+
+def _seconds_until_utc_midnight() -> int:
+    now = datetime.now(timezone.utc)
+    midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(60, int((midnight - now).total_seconds()))
+
+
+def _cost_cdn_seconds() -> int:
+    """Cost data is cached at the edge until UTC midnight at the latest, so a
+    new billing day or month is never served from yesterday's cache."""
+    return min(COST_CDN_SECONDS, _seconds_until_utc_midnight())
+
+
 def _unavailable(error: Exception, status_code: int = 503) -> JSONResponse:
     """Return a structured, secret-free error payload."""
     return JSONResponse(
@@ -83,21 +118,21 @@ def _severity_counts(findings: List[Dict[str, Any]]) -> Dict[str, int]:
 
 def _collect_instances(
     region: Optional[str] = None,
-) -> tuple[List[Dict[str, Any]], Optional[JSONResponse]]:
-    """Collect EC2 instances, returning an error response on failure."""
+) -> tuple[List[Dict[str, Any]], Optional[AWSAccessError]]:
+    """Collect EC2 instances, returning the error (not a response) on failure."""
     try:
         return discover_ec2_instances(region), None
     except AWSAccessError as error:
-        return [], _unavailable(error)
+        return [], error
 
 
 def _collect_metrics(
     instance_ids: List[str], region: Optional[str], hours: int
-) -> tuple[List[Dict[str, Any]], Optional[JSONResponse]]:
+) -> tuple[List[Dict[str, Any]], Optional[MetricsUnavailableError]]:
     try:
         return get_ec2_metrics(instance_ids, region_name=region, hours=hours), None
     except MetricsUnavailableError as error:
-        return [], _unavailable(error)
+        return [], error
 
 
 @app.get("/")
@@ -116,10 +151,11 @@ def health_check():
 
 
 @app.get("/api/resources/ec2")
-def get_ec2_resources(region: Optional[str] = None):
-    raw_instances, error_response = _collect_instances(region)
-    if error_response is not None:
-        return error_response
+def get_ec2_resources(response: Response, region: Optional[str] = None):
+    raw_instances, error = _collect_instances(region)
+    if error is not None:
+        return _unavailable(error)
+    _cdn_cache(response, INVENTORY_CDN_SECONDS)
 
     instances = []
 
@@ -147,15 +183,18 @@ def get_ec2_resources(region: Optional[str] = None):
 
 
 @app.get("/api/metrics/ec2")
-def get_ec2_metrics_endpoint(hours: int = 24, region: Optional[str] = None):
-    raw_instances, error_response = _collect_instances(region)
-    if error_response is not None:
-        return error_response
+def get_ec2_metrics_endpoint(
+    response: Response, hours: int = HoursParam, region: Optional[str] = None
+):
+    raw_instances, error = _collect_instances(region)
+    if error is not None:
+        return _unavailable(error)
 
     instance_ids = [instance.get("InstanceId") for instance in raw_instances]
-    metrics, error_response = _collect_metrics(instance_ids, region, hours)
-    if error_response is not None:
-        return error_response
+    metrics, metrics_error = _collect_metrics(instance_ids, region, hours)
+    if metrics_error is not None:
+        return _unavailable(metrics_error)
+    _cdn_cache(response, INVENTORY_CDN_SECONDS)
 
     return {
         "total_instances": len(instance_ids),
@@ -165,26 +204,30 @@ def get_ec2_metrics_endpoint(hours: int = 24, region: Optional[str] = None):
 
 
 @app.get("/api/costs")
-def get_costs(period: str = "monthly", group_by_service: bool = True):
+def get_costs(response: Response, period: str = "monthly", group_by_service: bool = True):
     try:
-        return get_cost_summary(period=period, group_by_service=group_by_service)
+        result = get_cost_summary(period=period, group_by_service=group_by_service)
     except CostServiceError as error:
         return _unavailable(error)
+    _cdn_cache(response, _cost_cdn_seconds())
+    return result
 
 
 @app.get("/api/costs/forecast")
-def get_costs_forecast(period: str = "monthly"):
+def get_costs_forecast(response: Response, period: str = "monthly"):
     try:
-        return get_cost_forecast(period=period)
+        result = get_cost_forecast(period=period)
     except CostServiceError as error:
         return _unavailable(error)
+    _cdn_cache(response, _cost_cdn_seconds())
+    return result
 
 
 @app.get("/api/insights")
-def get_insights(hours: int = 24, region: Optional[str] = None):
-    raw_instances, error_response = _collect_instances(region)
-    if error_response is not None:
-        return error_response
+def get_insights(response: Response, hours: int = HoursParam, region: Optional[str] = None):
+    raw_instances, error = _collect_instances(region)
+    if error is not None:
+        return _unavailable(error)
 
     instance_ids = [instance.get("InstanceId") for instance in raw_instances]
     metrics, metrics_error = _collect_metrics(instance_ids, region, hours)
@@ -205,17 +248,19 @@ def get_insights(hours: int = 24, region: Optional[str] = None):
     }
     if metrics_error is not None:
         payload["metrics_error"] = str(metrics_error)
+    else:
+        _cdn_cache(response, INVENTORY_CDN_SECONDS)
     return payload
 
 
 @app.get("/api/overview")
-def get_overview(hours: int = 24, period: str = "monthly"):
+def get_overview(response: Response, hours: int = HoursParam, period: str = "monthly"):
     # Resources
     raw_instances, resources_error = _collect_instances()
     if resources_error is not None:
         resources: Dict[str, Any] = {
             "status": "unavailable",
-            "error": resources_error,
+            "error": str(resources_error),
         }
         findings: List[Dict[str, Any]] = []
         insights: Dict[str, Any] = {"status": "unavailable"}
@@ -251,6 +296,8 @@ def get_overview(hours: int = 24, period: str = "monthly"):
     except CostServiceError as error:
         cost = {"status": "unavailable", "error": str(error)}
 
+    if resources_error is None and cost.get("status") != "unavailable":
+        _cdn_cache(response, INVENTORY_CDN_SECONDS)
     return {
         "resources": resources,
         "cost": cost,
@@ -259,10 +306,11 @@ def get_overview(hours: int = 24, period: str = "monthly"):
 
 
 @app.get("/api/recommendations")
-def get_recommendations(region: Optional[str] = None):
-    raw_instances, error_response = _collect_instances(region)
-    if error_response is not None:
-        return error_response
+def get_recommendations(response: Response, region: Optional[str] = None):
+    raw_instances, error = _collect_instances(region)
+    if error is not None:
+        return _unavailable(error)
+    _cdn_cache(response, INVENTORY_CDN_SECONDS)
 
     findings = analyze_ec2_resources(raw_instances)
     recommendations = [_legacy_recommendation(finding) for finding in findings]

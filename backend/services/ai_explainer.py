@@ -13,13 +13,23 @@ findings; nothing is fabricated.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import threading
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional
 
 __all__ = ["explain_findings", "build_fallback_explanation"]
+
+# LLM explanations are reused while the findings are unchanged, so a
+# dashboard refresh never triggers a new provider call. Deterministic
+# explanations are cheap and are not cached.
+_LLM_CACHE_TTL_SECONDS = int(os.environ.get("CLOUDOPS_AI_CACHE_SECONDS", "3600"))
+_llm_cache: Dict[str, Any] = {}
+_llm_cache_lock = threading.Lock()
 
 _RISK_BY_SEVERITY = {"high": "High", "medium": "Medium", "low": "Low"}
 
@@ -158,9 +168,25 @@ def explain_findings(findings: Optional[List[Dict]]) -> Dict:
     config = _provider_config()
     if not config:
         return build_fallback_explanation(findings)
+    key = hashlib.sha256(
+        json.dumps(
+            {"model": config["model"], "base_url": config["base_url"], "findings": findings},
+            sort_keys=True,
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+    now = time.time()
+    with _llm_cache_lock:
+        entry = _llm_cache.get(key)
+        if entry is not None and entry[0] > now:
+            return json.loads(json.dumps(entry[1]))
     try:
         result = _call_llm(config, findings)
-        return _normalize_llm_result(result, findings)
+        explanation = _normalize_llm_result(result, findings)
+        if explanation.get("source") == "llm" and _LLM_CACHE_TTL_SECONDS > 0:
+            with _llm_cache_lock:
+                _llm_cache[key] = (time.time() + _LLM_CACHE_TTL_SECONDS, explanation)
+        return explanation
     except (urllib.error.URLError, KeyError, ValueError, TypeError, json.JSONDecodeError):
         fallback = build_fallback_explanation(findings)
         fallback["source"] = "deterministic_fallback"

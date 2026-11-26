@@ -131,6 +131,11 @@ Copy `backend/.env.example` and `frontend/.env.example` to local environment fil
 | `CLOUDOPS_AI_API_KEY` or `OPENAI_API_KEY` | No | Optional AI explanation provider |
 | `CLOUDOPS_AI_BASE_URL` / `CLOUDOPS_AI_MODEL` | No | Optional provider configuration |
 | `INFRACOST_API_KEY` | No | Optional Infracost integration marker |
+| `CLOUDOPS_COST_CACHE_SECONDS` | No | In-process Cost Explorer cache lifetime, default 86400 (each CE request costs $0.01) |
+| `CLOUDOPS_COST_CDN_SECONDS` | No | Vercel CDN cache lifetime for successful cost responses, default 86400 |
+| `CLOUDOPS_INVENTORY_CDN_SECONDS` | No | Vercel CDN cache lifetime for EC2, metrics, insights and overview responses, default 60 |
+| `CLOUDOPS_DISCOVERY_CACHE_SECONDS` | No | In-process EC2 DescribeInstances cache, default 60; 0 disables |
+| `CLOUDOPS_AI_CACHE_SECONDS` | No | Reuse an LLM explanation for unchanged findings, default 3600 |
 
 ## Testing
 

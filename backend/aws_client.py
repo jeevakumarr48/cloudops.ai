@@ -10,6 +10,11 @@ the running compute). No credentials are created, stored, logged, or passed
 explicitly here.
 """
 
+import copy
+import os
+import threading
+import time
+
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -26,6 +31,14 @@ CLOUDWATCH_SERVICE_NAME = "cloudwatch"
 COST_EXPLORER_SERVICE_NAME = "ce"
 # Cost Explorer is a global service and is only served from us-east-1.
 COST_EXPLORER_REGION = "us-east-1"
+
+
+# One dashboard load reaches several endpoints that each need the instance
+# list. A short cache makes that a single DescribeInstances call while keeping
+# inventory fresh. Set CLOUDOPS_DISCOVERY_CACHE_SECONDS=0 to disable.
+_DISCOVERY_TTL_SECONDS = int(os.environ.get("CLOUDOPS_DISCOVERY_CACHE_SECONDS", "60"))
+_discovery_cache = {}
+_discovery_lock = threading.Lock()
 
 
 class AWSAccessError(RuntimeError):
@@ -51,9 +64,18 @@ def discover_ec2_instances(region_name=None):
     ``InstanceId``, ``InstanceType``, ``State``, ``Placement``,
     ``LaunchTime`` and ``Tags``.
 
+    Results are cached per region for ``CLOUDOPS_DISCOVERY_CACHE_SECONDS``
+    (default 60). Failures are never cached.
+
     Raises:
         AWSAccessError: if the EC2 API call fails.
     """
+    now = time.time()
+    with _discovery_lock:
+        entry = _discovery_cache.get(region_name)
+        if entry is not None and entry[0] > now:
+            return copy.deepcopy(entry[1])
+
     instances = []
     try:
         ec2 = create_ec2_client(region_name)
@@ -65,6 +87,11 @@ def discover_ec2_instances(region_name=None):
     except (ClientError, BotoCoreError) as error:
         raise AWSAccessError("Failed to retrieve EC2 instances") from error
 
+    if _DISCOVERY_TTL_SECONDS > 0:
+        with _discovery_lock:
+            _discovery_cache[region_name] = (
+                time.time() + _DISCOVERY_TTL_SECONDS, copy.deepcopy(instances)
+            )
     return instances
 
 

@@ -8,8 +8,10 @@ explicit ``available: false`` forecast state.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
@@ -26,12 +28,18 @@ __all__ = [
 
 SUPPORTED_PERIODS = ("daily", "monthly")
 
-# Short-lived cache to avoid repeated Cost Explorer calls (CE bills per
-# request). 15 minutes is short enough to stay fresh and long enough to keep
-# the dashboard from hammering the API.
-_CACHE_TTL_SECONDS = 900
+# Cache to avoid repeated Cost Explorer calls: CE bills $0.01 per request and
+# AWS refreshes billing data only a few times a day, so a 24-hour default keeps
+# the whole project inside its $1/month budget. Override with
+# CLOUDOPS_COST_CACHE_SECONDS. This cache is per process; Vercel's CDN cache
+# (see main.py) shares results across instances.
+_CACHE_TTL_SECONDS = int(os.environ.get("CLOUDOPS_COST_CACHE_SECONDS", "86400"))
 _cache: Dict[tuple, Tuple[float, Dict]] = {}
 _cache_lock = threading.Lock()
+# One lock per cache key so concurrent requests for the same data (the
+# dashboard requests /api/overview and /api/costs together) make one billed
+# Cost Explorer call instead of two.
+_key_locks: Dict[tuple, threading.Lock] = {}
 
 _DENIED_CODES = {
     "AccessDeniedException",
@@ -82,6 +90,14 @@ def _cache_set(key: tuple, value: Dict) -> None:
         _cache[key] = (time.time() + _CACHE_TTL_SECONDS, value)
 
 
+@contextmanager
+def _single_flight(key: tuple):
+    with _cache_lock:
+        lock = _key_locks.setdefault(key, threading.Lock())
+    with lock:
+        yield
+
+
 def _normalize_period(period: str) -> str:
     normalized = (period or "monthly").strip().lower()
     if normalized not in SUPPORTED_PERIODS:
@@ -104,11 +120,27 @@ def get_cost_summary(
     Pagination is followed via ``NextPageToken``.
     """
     normalized_period = _normalize_period(period)
-    cache_key = ("summary", normalized_period, bool(group_by_service), region_name)
+    # The UTC date is part of the key so a cached month never crosses midnight
+    # into the next billing day or month.
+    cache_key = ("summary", normalized_period, bool(group_by_service), region_name, _today_utc())
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
+    with _single_flight(cache_key):
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+        return _fetch_cost_summary(
+            normalized_period, group_by_service, region_name, cache_key
+        )
 
+
+def _fetch_cost_summary(
+    normalized_period: str,
+    group_by_service: bool,
+    region_name: Optional[str],
+    cache_key: tuple,
+) -> Dict:
     start, end_exclusive, granularity = _time_period(normalized_period)
     request: Dict = {
         "TimePeriod": {"Start": start.isoformat(), "End": end_exclusive.isoformat()},
@@ -191,11 +223,20 @@ def get_cost_forecast(
     a fabricated number.
     """
     normalized_period = _normalize_period(period)
-    cache_key = ("forecast", normalized_period, region_name)
+    cache_key = ("forecast", normalized_period, region_name, _today_utc())
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
+    with _single_flight(cache_key):
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+        return _fetch_cost_forecast(normalized_period, region_name, cache_key)
 
+
+def _fetch_cost_forecast(
+    normalized_period: str, region_name: Optional[str], cache_key: tuple
+) -> Dict:
     today = _today_utc()
     start = today + timedelta(days=1)
     end = start + timedelta(days=31) if normalized_period == "daily" else start + timedelta(days=62)

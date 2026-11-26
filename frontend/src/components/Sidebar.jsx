@@ -33,7 +33,7 @@ function Sidebar({ activePage, onNavigate, open, onClose }) {
           </button>
         ))}
       </nav>
-      <div className="sidebar-footer"><StatusPill tone="warn">Backend data connection pending</StatusPill></div>
+      <div className="sidebar-footer"><StatusPill tone="neutral" title="CloudOps AI only reads AWS data and never changes infrastructure">Read-only access</StatusPill></div>
     </aside>
   )
 }
