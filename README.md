@@ -204,6 +204,58 @@ minute). Same access rule as S3: operator sign-in unless
 Utilization is never judged on partial history, stopped instances or missing
 metrics; those return `INSUFFICIENT_EVIDENCE` or `DATA_UNAVAILABLE`.
 
+## Unified governance engine
+
+One engine runs every deterministic rule across EC2, S3, RDS and Cost
+Explorer, scores the findings and tracks their lifecycle.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/governance/findings` | Active findings sorted by priority. Filters: `category`, `severity`, `evidence_state`, `resource_type`, `status`, `include_resolved` |
+| `GET /api/governance/summary` | Counts by severity, category, resource type, evidence state and status, top 5 priorities, per-source status and the scoring formula |
+| `PATCH /api/governance/findings/{finding_id}` | Set `open`, `acknowledged`, `accepted_risk` or `false_positive` with a note (signed-in operator only; audited) |
+| `POST /api/governance/iac` | Terraform plan + optional metrics/Infracost as unified, scored findings (same input as `/api/iac/analyze`) |
+
+The original `/api/insights` and `/api/recommendations` are unchanged.
+
+**Every finding** carries `finding_id` (stable hash of resource type, rule and
+resource), `rule_id`, `resource_type`, `resource_id`, `region`, `category`,
+`severity` (CRITICAL to INFO), `evidence_state`, `title`, `description`, cited
+`evidence`, `detection_source`, `recommendation`, `remediation_steps`,
+`confidence`, `missing_information`, `requires_human_approval` (always true),
+`priority` and `lifecycle` (`status`, `first_detected`, `last_detected`,
+`resolved_at`, `times_reopened`).
+
+**Lifecycle.** Findings are stored in the `governance_findings` table. When a
+source scans successfully and a finding is no longer detected, it is resolved
+automatically; if it comes back it reopens. A source that fails leaves its
+findings untouched, so an outage never resolves anything.
+
+**Priority score** (0 to 100, deterministic; the AI layer never changes it):
+
+```
+impact   = 0.45*S + 0.30*X + 0.25*F
+priority = max(0, impact*C - P_effort - P_risk)
+```
+
+| Input | Values |
+|---|---|
+| S severity | CRITICAL 100, HIGH 75, MEDIUM 50, LOW 25, INFO 0 |
+| X exposure | 100 confirmed internet exposure (critical/high), 60 potential, else 0 |
+| F financial | 0 unless AWS or Infracost measured a dollar figure, then min(100, 20 x log2(1 + USD)) |
+| C confidence | CONFIRMED 1.0, POTENTIAL 0.7, INSUFFICIENT_EVIDENCE 0.3 |
+| P_effort, P_risk | low 0, medium 5, high 10 per rule; resizing a production resource is high risk |
+
+New rules in this phase: `EC2_OPEN_ADMIN_PORTS` (SSH/RDP open to the internet
+on a public instance), `EC2_STOPPED_INSTANCE`, `EC2_LOW_UTILIZATION` (14 days,
+80% coverage, mean < 10% and peak < 40%), `EC2_MISSING_OWNER_TAG`,
+`EC2_MISSING_ENVIRONMENT_TAG` and `COST_WEEKLY_INCREASE` (last 7 complete days
+vs the 7 before: +25% and +$1 is MEDIUM, +100% and +$5 is HIGH). The cost rule
+reuses the per-day series now included in `/api/costs?period=daily` (`daily`
+field), so it makes no extra billed request.
+
+After pulling this change, run `alembic upgrade head` again on production.
+
 ## Accounts, workspaces and the database
 
 The original dashboard endpoints stay public and read-only. Accounts and

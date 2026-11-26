@@ -114,3 +114,14 @@ def require_operator(
             raise HTTPException(status_code=403, detail="Operator access required.")
     finally:
         db.close()
+
+
+def require_operator_user(
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(current_principal),
+) -> Principal:
+    """Writes about the deployment's own account always need a signed-in
+    operator, even when findings are publicly readable."""
+    if principal.user.email not in config.operator_emails():
+        raise HTTPException(status_code=403, detail="Operator access required.")
+    return principal

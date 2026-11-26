@@ -186,6 +186,9 @@ def _fetch_cost_summary(
         request["GroupBy"] = [{"Type": "DIMENSION", "Key": "SERVICE"}]
 
     service_totals: Dict[str, float] = {}
+    # Daily period only: the per-day series AWS already returns, kept so the
+    # governance engine can compare weeks without another billed request.
+    day_totals: Dict[str, Dict[str, float]] = {}
     total = 0.0
     currency = "USD"
 
@@ -199,6 +202,8 @@ def _fetch_cost_summary(
             response = client.get_cost_and_usage(**call)
 
             for bucket in response.get("ResultsByTime", []):
+                day = (bucket.get("TimePeriod") or {}).get("Start")
+                day_services = day_totals.setdefault(day, {}) if day else {}
                 if group_by_service:
                     for group in bucket.get("Groups", []):
                         keys = group.get("Keys") or []
@@ -207,11 +212,13 @@ def _fetch_cost_summary(
                         value = float(amount.get("Amount", 0) or 0)
                         currency = amount.get("Unit", currency)
                         service_totals[name] = service_totals.get(name, 0.0) + value
+                        day_services[name] = day_services.get(name, 0.0) + value
                         total += value
                 else:
                     amount = bucket.get("Total", {}).get("UnblendedCost", {})
                     value = float(amount.get("Amount", 0) or 0)
                     currency = amount.get("Unit", currency)
+                    day_services["Total"] = day_services.get("Total", 0.0) + value
                     total += value
 
             next_token = response.get("NextPageToken")
@@ -243,6 +250,15 @@ def _fetch_cost_summary(
         "end_inclusive": (end_exclusive - timedelta(days=1)).isoformat(),
         "services": services,
     }
+    if normalized_period == "daily":
+        result["daily"] = [
+            {
+                "date": day,
+                "total": round(sum(values.values()), 4),
+                "services": {name: round(value, 4) for name, value in values.items() if value},
+            }
+            for day, values in sorted(day_totals.items())
+        ]
     _cache_set(cache_key, result)
     return result
 

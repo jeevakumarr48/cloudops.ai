@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from aws_client import AWSAccessError, discover_ec2_instances
 from core.authz import require_operator
 from routers import auth as auth_router
+from routers import governance as governance_router
 from routers import workspaces as workspaces_router
 from services.ai_explainer import explain_findings
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
@@ -57,7 +58,7 @@ app.add_middleware(
     # Credentials are needed for the session cookie when the frontend runs on
     # a different local origin. Origins are an explicit list, never "*".
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
 
@@ -85,6 +86,7 @@ def _cdn_cache(response: Response, seconds: int) -> None:
 
 app.include_router(auth_router.router)
 app.include_router(workspaces_router.router)
+app.include_router(governance_router.router)
 
 
 def _seconds_until_utc_midnight() -> int:

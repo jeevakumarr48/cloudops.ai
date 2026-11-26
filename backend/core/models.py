@@ -185,3 +185,44 @@ class AuditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
     )
+
+
+FINDING_STATUSES = ("open", "acknowledged", "accepted_risk", "false_positive", "resolved")
+
+
+class GovernanceFinding(Base):
+    """Lifecycle record for a finding produced by the governance engine.
+
+    ``scope`` is "global" for the deployment's own AWS account or a
+    workspace id. The full latest finding is kept in ``payload``; the
+    indexed columns exist for filtering.
+    """
+
+    __tablename__ = "governance_findings"
+    __table_args__ = (UniqueConstraint("scope", "finding_id", name="uq_scope_finding"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    scope: Mapped[str] = mapped_column(String(36), default="global", index=True)
+    workspace_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    finding_id: Mapped[str] = mapped_column(String(32))
+    source: Mapped[str] = mapped_column(String(16))
+    rule_id: Mapped[str] = mapped_column(String(64))
+    resource_type: Mapped[str] = mapped_column(String(32))
+    resource_id: Mapped[str] = mapped_column(String(255))
+    category: Mapped[str] = mapped_column(String(24))
+    severity: Mapped[str] = mapped_column(String(12))
+    evidence_state: Mapped[str] = mapped_column(String(24))
+    priority_score: Mapped[float] = mapped_column(default=0.0)
+    payload: Mapped[Dict[str, Any]] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(16), default="open")
+    status_note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    status_changed_by: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    status_changed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    times_reopened: Mapped[int] = mapped_column(Integer, default=0)
+    first_detected: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_detected: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
