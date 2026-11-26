@@ -276,12 +276,17 @@ Pipeline: findings -> evidence bundle (finding, other findings on the same resou
 
 | Method | Path | Access | Purpose |
 | --- | --- | --- | --- |
-| GET | `/api/ai/recommendations` | operator | Recommendations and a deterministic posture summary |
+| GET | `/api/ai/recommendations` | operator | Recommendations (each with `fix` commands), a deterministic posture summary and a fix-first `plan` |
 | GET | `/api/ai/status` | operator | Provider, model, calls used today (never the key) |
 | POST | `/api/ai/analyze` | signed-in operator | AI rewrite of up to 10 findings (`finding_ids` or top `limit`) |
 | POST | `/api/ai/recommendations/{id}/feedback` | signed-in operator | Record `accepted`, `rejected`, `remediation_in_progress` or `remediated_pending_verification`; changes nothing in AWS |
 
 The legacy `/api/insights` explanation and its `ai_explainer` are unchanged.
+
+### Fix commands and the fix-first plan
+
+- **Fix commands.** Each recommendation for an S3, RDS, EC2 or cost rule carries `fix`: copy-ready AWS CLI commands built from the finding (resource id and region filled in, shell-quoted). They are grouped as *record the current state*, *make the change*, *check it worked* and *undo*, and every step is labelled `read_only`, `safe`, `disruptive` or `destructive`. Values that need a human decision (instance type, retention days, owner) stay as `<PLACEHOLDERS>`. CloudOps never runs them, never sends them to an AI provider, and omits them for findings with insufficient evidence and for Terraform findings (fix those in code).
+- **Fix-first plan.** `plan` groups open findings by resource and orders the groups by most severe finding, highest priority score and number of findings. It explains a group only with the known cross-finding correlations and marks quick wins (one low-risk command on confirmed evidence). Accepted-risk, false-positive and resolved findings are left out. It is deterministic and costs nothing.
 
 ### Evaluating recommendations
 

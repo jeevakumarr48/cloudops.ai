@@ -25,7 +25,8 @@ from sqlalchemy.orm import Session
 from core.models import RecommendationFeedback, RecommendationRecord, utcnow
 from core.security import consume_key
 from services.governance_common import SEVERITY_ORDER
-from services.recommendations import providers, templates, validator
+from services.recommendations import fix_commands, providers, templates, validator
+from services.recommendations.plan import fix_first_plan
 from services.recommendations.context import build_bundles
 from services.recommendations.schema import LLMRewrite, Recommendation
 
@@ -95,6 +96,8 @@ def _with_lifecycle(payload: Dict[str, Any], finding: Dict[str, Any]) -> Dict[st
     payload["finding_status"] = (finding.get("lifecycle") or {}).get("status", "open")
     # Scores and severity always come from the current finding.
     payload["priority_score"] = (finding.get("priority") or {}).get("score", payload.get("priority_score", 0.0))
+    # Commands are rebuilt from the current finding (never stored or sent to a model).
+    payload["fix"] = fix_commands.fix_for(finding)
     return payload
 
 
@@ -132,7 +135,8 @@ def list_recommendations(findings: List[Dict[str, Any]], db: Optional[Session], 
         for payload in out:
             payload["feedback"] = feedback.get(payload["recommendation_id"])
     out.sort(key=lambda p: (-p["priority_score"], SEVERITY_ORDER.get(p["severity"], 9), p["rule_id"]))
-    return {"recommendations": out, "persisted": persisted, "summary": posture_summary(out)}
+    return {"recommendations": out, "persisted": persisted, "summary": posture_summary(out),
+            "plan": fix_first_plan(out)}
 
 
 def posture_summary(recs: List[Dict[str, Any]]) -> Dict[str, Any]:

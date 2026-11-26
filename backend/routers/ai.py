@@ -5,6 +5,9 @@
 - ``POST /api/ai/analyze``          user-triggered AI rewrite of up to 10
   findings, validated, with a daily provider-call cap.
 - ``POST /api/ai/recommendations/{id}/feedback``  record a human decision.
+  Each recommendation carries ``fix`` (copy-ready AWS CLI commands that are
+  shown, never run) and the response carries ``plan`` (a fix-first order
+  grouped by resource).
 - ``GET  /api/ai/status``           provider and budget status (no secrets).
 """
 
@@ -62,7 +65,8 @@ def list_recommendations(response: Response, refresh: bool = False):
     response.headers["Cache-Control"] = "private, no-store"
     return {"status": "ok", "scanned_at": scan["scanned_at"], "sources": scan["sources"],
             "persisted": result["persisted"], "summary": result["summary"],
-            "total": len(result["recommendations"]), "recommendations": result["recommendations"]}
+            "total": len(result["recommendations"]), "recommendations": result["recommendations"],
+            "plan": result["plan"]}
 
 
 @router.get("/status", dependencies=[Depends(require_operator)])

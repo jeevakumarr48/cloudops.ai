@@ -5,6 +5,9 @@ import Button from '../components/ui/Button'
 import EmptyState from '../components/EmptyState'
 import AccessGate from '../components/governance/AccessGate'
 import SourceStatus from '../components/governance/SourceStatus'
+import FixCommands from '../components/governance/FixCommands'
+import FixFirstPlan from '../components/governance/FixFirstPlan'
+import { jumpToRecommendation } from '../components/governance/fixHelpers'
 import { DECISIONS, SEVERITIES, formatDate, label, severityTone, stateTone } from '../components/governance/labels'
 import { analyzeWithAi, describeError, getAiRecommendations, getAiStatus, sendRecommendationFeedback } from '../services/api'
 
@@ -46,7 +49,7 @@ function Feedback({ rec, isOperator, onSaved }) {
 function RecommendationCard({ rec, isOperator, aiReady, onAnalyze, analyzing, onSaved }) {
   const savings = rec.estimated_savings
   const v = rec.validation || {}
-  return <article className="panel rec-card">
+  return <article className="panel rec-card" id={`rec-${rec.recommendation_id}`}>
     <header className="rec-head">
       <div className="rec-badges">
         <Badge tone={severityTone(rec.severity)}>{rec.severity}</Badge>
@@ -72,6 +75,7 @@ function RecommendationCard({ rec, isOperator, aiReady, onAnalyze, analyzing, on
       <Field n="12" title="Human approval"><p><ShieldAlert size={13} /> Required. CloudOps AI does not make this change.</p></Field>
     </div>
     {rec.correlation_note && <p className="rec-correlation"><Lightbulb size={14} /> {rec.correlation_note}</p>}
+    <FixCommands fix={rec.fix} />
     {v.checked === 'llm' && !v.passed && <div className="rec-violations"><strong>AI text was rejected, so the rule template is shown.</strong>{v.provider_error ? <p>{v.provider_error}</p> : <ul>{(v.violations || []).map((x) => <li key={x}>{x}</li>)}</ul>}</div>}
     <footer className="rec-foot">
       <Feedback rec={rec} isOperator={isOperator} onSaved={onSaved} />
@@ -137,6 +141,7 @@ function Recommendations({ isOperator, onSignIn, sessionKey }) {
           {analysis && (analysis.ok ? <ul className="analysis-result">{analysis.result.results.map((r) => <li key={r.finding_id}>{OUTCOMES[r.outcome] || r.outcome}</li>)}<li className="muted">{analysis.result.provider_calls} provider call(s) used.</li></ul> : <p className="form-error">{analysis.message}</p>)}
         </section>
       </div>
+      {data?.plan && <FixFirstPlan plan={data.plan} onJump={(id) => { setSeverity(''); window.setTimeout(() => jumpToRecommendation(id), 50) }} />}
       <div className="table-toolbar filters-row">
         <label className="filter-select"><span>Severity</span><select value={severity} onChange={(e) => setSeverity(e.target.value)}><option value="">All severities</option>{SEVERITIES.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></label>
         <span className="muted">{recs.length} recommendation(s), highest priority first</span>
