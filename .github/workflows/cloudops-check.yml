@@ -150,3 +150,30 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report
           retention-days: 7
+
+  docker:
+    # Builds both images and runs the full stack on Postgres (the same engine
+    # as Neon in production), then runs the read-only smoke test against it.
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and start Postgres, API and frontend
+        run: docker compose up --build -d --wait --wait-timeout 180
+
+      - name: Smoke test as a signed-in operator
+        run: |
+          curl -fsS -X POST http://localhost:8080/api/auth/register \
+            -H 'Content-Type: application/json' -H 'Origin: http://localhost:8080' \
+            -d '{"email":"operator@example.com","password":"ci-only-password-not-secret"}' > /dev/null
+          python3 scripts/smoke_test.py http://localhost:8080 --email operator@example.com --password ci-only-password-not-secret
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v

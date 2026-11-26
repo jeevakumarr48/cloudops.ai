@@ -102,23 +102,37 @@ infrastructure/          Terraform source and real analysis artifacts
 
 ## Local Setup
 
-Requirements: Python 3.12+, Node.js 22+, npm, and optional read-only AWS credentials.
+### Docker (one command)
+
+Requirements: Docker with Compose v2.
+
+```bash
+docker compose up --build        # or: make up
+```
+
+Open http://localhost:8080 (the demo is at http://localhost:8080/?demo=1). This runs Postgres 16, the API (migrations applied on start, non-root user) and the built frontend behind nginx, which proxies `/api` the same way `frontend/vercel.json` does in production. Register `operator@example.com` (or set `CLOUDOPS_OPERATOR_EMAILS`) to see the operator console. Without AWS credentials every source reports unavailable; to read your own account, uncomment the read-only `~/.aws` mount in `docker-compose.yml`. CI runs this same stack and the smoke test against it.
+
+### Without Docker
+
+Requirements: Python 3.12+, Node.js 22+, and optional read-only AWS credentials.
+
+```bash
+make install     # virtualenv, backend dev requirements, npm ci
+make dev         # API on :8000 (SQLite, migrations applied) and Vite on :5173
+make check       # ruff, mypy, backend tests with coverage, Vitest, evaluation
+make e2e         # Playwright end-to-end tests
+make help        # every target
+```
+
+On Windows without `make`, run the commands in the `Makefile` directly, for example:
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
-python -m pip install -r requirements.txt
-
-cd backend
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-In another terminal:
-
-```bash
-cd frontend
-npm ci
-npm run dev
+pip install -r backend/requirements-dev.txt
+cd backend && python -m alembic upgrade head && python -m uvicorn main:app --reload --port 8000
+# second terminal
+cd frontend && npm ci && npm run dev
 ```
 
 Copy `backend/.env.example` and `frontend/.env.example` to local environment files as needed. Environment files containing secrets are ignored by Git.

@@ -41,3 +41,4 @@ backend/e2e.sqlite3
 # Coverage data
 .coverage
 coverage.xml
+backend/dev.sqlite3

@@ -1,0 +1,50 @@
+# Local stack: Postgres, the API and the built frontend.
+#   docker compose up --build      then open http://localhost:8080
+# The API starts without AWS credentials (the console shows sources as
+# unavailable and the demo at /?demo=1 works). To read your own account,
+# uncomment the ~/.aws mount below; the app only ever reads.
+name: cloudops-ai
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cloudops
+      POSTGRES_PASSWORD: cloudops-local-only
+      POSTGRES_DB: cloudops
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudops -d cloudops"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://cloudops:cloudops-local-only@db:5432/cloudops
+      CLOUDOPS_COOKIE_SECURE: "false"
+      CLOUDOPS_OPERATOR_EMAILS: ${CLOUDOPS_OPERATOR_EMAILS:-operator@example.com}
+      CLOUDOPS_AI_CORS_ORIGINS: http://localhost:8080
+      CLOUDOPS_AI_PROVIDER: ${CLOUDOPS_AI_PROVIDER:-none}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_EC2_METADATA_DISABLED: "true"
+    # volumes:
+    #   - ~/.aws:/home/cloudops/.aws:ro
+    ports:
+      - "8000:8000"
+
+  web:
+    build: ./frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:
