@@ -378,6 +378,11 @@ instance shares them, and billed requests are capped per month
 (`CLOUDOPS_CE_MONTHLY_CALL_LIMIT`). When the cap is reached the most recent real
 snapshot is served; nothing is estimated.
 
+CloudWatch metrics (EC2 CPU, RDS and S3 storage) are read with
+`GetMetricStatistics`, one call per metric, which is covered by CloudWatch's
+free tier of 1 million API requests a month. The billed `GetMetricData` API is
+not used.
+
 ## Testing and quality gates
 
 Every push and pull request runs these in CI (`.github/workflows/cloudops-check.yml`). None of them need AWS credentials or an AI provider.

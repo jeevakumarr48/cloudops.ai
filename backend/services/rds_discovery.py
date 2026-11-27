@@ -2,7 +2,7 @@
 
 Collects configuration from ``DescribeDBInstances`` (paginated), inbound
 rules of the attached VPC security groups (``DescribeSecurityGroups``) and
-14 days of hourly CloudWatch metrics. Metric coverage is reported so rules
+14 days of hourly CloudWatch metrics (``GetMetricStatistics``, free tier). Metric coverage is reported so rules
 can refuse to judge utilization on thin data. A missing metric is ``None``,
 never zero. Nothing here writes to AWS.
 """
@@ -21,6 +21,7 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from core import aws_session
+from services.cloudwatch_stats import metric_series
 
 __all__ = ["METRIC_WINDOW_DAYS", "RDSAccessError", "clear_cache", "discover_rds_instances"]
 
@@ -108,46 +109,31 @@ def _metrics(region: Optional[str], identifier: str) -> Dict[str, Any]:
     start = end - timedelta(days=METRIC_WINDOW_DAYS)
     expected = METRIC_WINDOW_DAYS * 24
 
-    def query(query_id: str, metric: str, stat: str):
-        return {
-            "Id": query_id,
-            "MetricStat": {
-                "Metric": {
-                    "Namespace": "AWS/RDS",
-                    "MetricName": metric,
-                    "Dimensions": [{"Name": "DBInstanceIdentifier", "Value": identifier}],
-                },
-                "Period": _PERIOD_SECONDS,
-                "Stat": stat,
-            },
-            "ReturnData": True,
-        }
-
-    queries = [
-        query("cpuavg", "CPUUtilization", "Average"),
-        query("cpumax", "CPUUtilization", "Maximum"),
-        query("conn", "DatabaseConnections", "Maximum"),
-        query("freestorage", "FreeStorageSpace", "Minimum"),
-        query("freemem", "FreeableMemory", "Minimum"),
+    dimensions = [{"Name": "DBInstanceIdentifier", "Value": identifier}]
+    # One GetMetricStatistics call per metric (free tier); 14 days of hourly
+    # datapoints is 336, well under the 1,440-datapoint limit per call.
+    requests = [
+        ("CPUUtilization", ("Average", "Maximum")),
+        ("DatabaseConnections", ("Maximum",)),
+        ("FreeStorageSpace", ("Minimum",)),
+        ("FreeableMemory", ("Minimum",)),
     ]
-    values: Dict[str, List[Tuple[datetime, float]]] = {q["Id"]: [] for q in queries}
+    series: Dict[str, Dict[str, List[Tuple[datetime, float]]]] = {}
     try:
         client = _client("cloudwatch", region)
-        token = None
-        while True:
-            kwargs = {"MetricDataQueries": queries, "StartTime": start, "EndTime": end, "ScanBy": "TimestampDescending"}
-            if token:
-                kwargs["NextToken"] = token
-            response = client.get_metric_data(**kwargs)
-            for item in response.get("MetricDataResults", []):
-                values.setdefault(item.get("Id"), []).extend(
-                    zip(item.get("Timestamps") or [], item.get("Values") or [], strict=False)
-                )
-            token = response.get("NextToken")
-            if not token:
-                break
+        for metric, stats in requests:
+            series[metric] = metric_series(
+                client, "AWS/RDS", metric, dimensions, stats, _PERIOD_SECONDS, start, end
+            )
     except (ClientError, BotoCoreError) as error:
         return {"status": _classify(error), "window_days": METRIC_WINDOW_DAYS, "note": "CloudWatch metrics could not be read."}
+    values = {
+        "cpuavg": series["CPUUtilization"]["Average"],
+        "cpumax": series["CPUUtilization"]["Maximum"],
+        "conn": series["DatabaseConnections"]["Maximum"],
+        "freestorage": series["FreeStorageSpace"]["Minimum"],
+        "freemem": series["FreeableMemory"]["Minimum"],
+    }
 
     cpu_avg = [v for _, v in values["cpuavg"]]
     cpu_max = [v for _, v in values["cpumax"]]

@@ -76,7 +76,7 @@ http_security.install(app, _cors_origins)
 
 # CloudWatch retains 1-hour datapoints for 455 days, but anything beyond 30
 # days is outside what the dashboard uses; bounding the window also bounds
-# the size of each GetMetricData request.
+# the number of datapoints in each GetMetricStatistics call (max 1,440).
 MAX_METRIC_HOURS = 720
 HoursParam = Query(24, ge=1, le=MAX_METRIC_HOURS)
 

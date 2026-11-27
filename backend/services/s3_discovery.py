@@ -13,9 +13,10 @@ Storage size and object counts come only from the free daily CloudWatch
 storage metrics. A missing datapoint is reported as ``None`` with a reason;
 it is never treated as zero. Nothing here writes to AWS.
 
-Cost note (checked 2026-11-26): S3 GET-class requests cost about $0.0004 per
-1,000 and CloudWatch GetMetricData about $0.01 per 1,000 metrics, so a scan of
-tens of buckets costs well under a cent. Results are cached in process.
+Cost note (checked 2026-11-27): S3 GET-class requests cost about $0.0004 per
+1,000, and storage metrics are read with CloudWatch ``GetMetricStatistics``,
+which is covered by the free tier of 1 million API requests a month, so a scan
+of tens of buckets costs well under a cent. Results are cached in process.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from core import aws_session
+from services.cloudwatch_stats import metric_series
 
 __all__ = [
     "S3AccessError",
@@ -157,24 +159,6 @@ def _storage_metrics(bucket: str, region: str) -> Dict[str, Any]:
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=3)
 
-    def query(query_id, metric, storage_type):
-        return {
-            "Id": query_id,
-            "MetricStat": {
-                "Metric": {
-                    "Namespace": "AWS/S3",
-                    "MetricName": metric,
-                    "Dimensions": [
-                        {"Name": "BucketName", "Value": bucket},
-                        {"Name": "StorageType", "Value": storage_type},
-                    ],
-                },
-                "Period": 86400,
-                "Stat": "Average",
-            },
-            "ReturnData": True,
-        }
-
     result: Dict[str, Any] = {
         "status": "ok",
         "standard_storage_bytes": None,
@@ -182,16 +166,20 @@ def _storage_metrics(bucket: str, region: str) -> Dict[str, Any]:
         "as_of": None,
         "note": None,
     }
+    def dims(storage_type: str) -> List[Dict[str, str]]:
+        return [
+            {"Name": "BucketName", "Value": bucket},
+            {"Name": "StorageType", "Value": storage_type},
+        ]
+
     try:
-        response = _client("cloudwatch", region).get_metric_data(
-            MetricDataQueries=[
-                query("size", "BucketSizeBytes", "StandardStorage"),
-                query("objects", "NumberOfObjects", "AllStorageTypes"),
-            ],
-            StartTime=start,
-            EndTime=end,
-            ScanBy="TimestampDescending",
-        )
+        client = _client("cloudwatch", region)
+        size = metric_series(
+            client, "AWS/S3", "BucketSizeBytes", dims("StandardStorage"), ("Average",), 86400, start, end
+        )["Average"]
+        objects = metric_series(
+            client, "AWS/S3", "NumberOfObjects", dims("AllStorageTypes"), ("Average",), 86400, start, end
+        )["Average"]
     except ClientError as error:
         code = error.response.get("Error", {}).get("Code", "")
         result["status"] = "access_denied" if code in _DENIED_CODES else "error"
@@ -202,17 +190,14 @@ def _storage_metrics(bucket: str, region: str) -> Dict[str, Any]:
         result["note"] = "CloudWatch storage metrics could not be read."
         return result
 
-    for item in response.get("MetricDataResults", []):
-        values = item.get("Values") or []
-        timestamps = item.get("Timestamps") or []
-        if not values:
-            continue
-        if item.get("Id") == "size":
-            result["standard_storage_bytes"] = int(values[0])
-        elif item.get("Id") == "objects":
-            result["object_count"] = int(values[0])
-        if timestamps and result["as_of"] is None:
-            result["as_of"] = timestamps[0].isoformat() if hasattr(timestamps[0], "isoformat") else str(timestamps[0])
+    # Series are newest first; report the latest datapoint of each metric.
+    if size:
+        result["standard_storage_bytes"] = int(size[0][1])
+    if objects:
+        result["object_count"] = int(objects[0][1])
+    latest = size[0][0] if size else (objects[0][0] if objects else None)
+    if latest is not None:
+        result["as_of"] = latest.isoformat() if hasattr(latest, "isoformat") else str(latest)
     if result["standard_storage_bytes"] is None and result["object_count"] is None:
         result["status"] = "no_data"
         result["note"] = (

@@ -138,6 +138,39 @@ def test_partial_metric_history_is_insufficient():
     assert result["RDS_LOW_UTILIZATION"]["evidence_state"] == INSUFFICIENT_EVIDENCE
 
 
+def test_metrics_use_one_get_metric_statistics_call_per_metric(monkeypatch):
+    create_db()
+    put_cpu("db1", 5.0, hours=24)
+    cw = boto3.client("cloudwatch")
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    cw.put_metric_data(Namespace="AWS/RDS", MetricData=[{
+        "MetricName": "FreeStorageSpace",
+        "Dimensions": [{"Name": "DBInstanceIdentifier", "Value": "db1"}],
+        "Timestamp": now - timedelta(hours=h) + timedelta(minutes=5), "Value": float(10 - h),
+    } for h in (1, 2)])
+    calls = []
+    real = rds_discovery.metric_series
+    monkeypatch.setattr(rds_discovery, "metric_series", lambda *a: calls.append(a[2]) or real(*a))
+    metrics = rds_discovery.discover_rds_instances()["instances"][0]["metrics"]
+    assert calls == ["CPUUtilization", "DatabaseConnections", "FreeStorageSpace", "FreeableMemory"]
+    assert metrics["observed_hours"] == 24 and metrics["cpu_peak"] == 5.0
+    assert metrics["free_storage_bytes_latest"] == 9  # newest datapoint wins
+    assert metrics["connections_peak"] is None and metrics["freeable_memory_bytes_min"] is None
+
+
+def test_cloudwatch_denied_is_reported_not_zero(monkeypatch):
+    create_db()
+
+    def denied(*args, **kwargs):
+        raise ClientError({"Error": {"Code": "AccessDenied"}}, "GetMetricStatistics")
+
+    monkeypatch.setattr(rds_discovery, "metric_series", denied)
+    db = rds_discovery.discover_rds_instances()["instances"][0]
+    assert db["metrics"]["status"] == "access_denied"
+    assert "cpu_mean" not in db["metrics"]
+    assert rules(db)["RDS_LOW_UTILIZATION"]["evidence_state"] == DATA_UNAVAILABLE
+
+
 def test_describe_denied_raises(monkeypatch):
     class Denied:
         meta = type("M", (), {"region_name": "us-east-1"})()

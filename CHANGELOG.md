@@ -16,6 +16,16 @@ fields under `/api`) is the versioned surface.
 - **`CLOUDOPS_MAX_USERS`.** Cap on registered accounts (default 100);
   operator emails can always register.
 
+### Changed
+
+- **CloudWatch reads use the free API.** EC2, RDS and S3 metrics are read
+  with `GetMetricStatistics` (covered by CloudWatch's free tier of 1 million
+  API requests a month) instead of `GetMetricData` (billed per metric). Same
+  metrics, periods and response fields; missing datapoints stay missing. The
+  read-only IAM policy now grants `cloudwatch:GetMetricStatistics` in place of
+  `cloudwatch:GetMetricData`: update a manually attached policy before
+  deploying, or metrics report as unavailable.
+
 ## [1.0.0] - 2026-11-26
 
 First release as a governance platform. Everything stays read-only: no AWS

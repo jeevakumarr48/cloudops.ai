@@ -157,7 +157,7 @@ def _rule_admin_ports(instance, exposure: Optional[Dict]) -> Dict:
 def _rule_utilization(instance, metrics: Optional[Dict], metrics_status: str) -> Dict:
     ev = _ev(instance, "EC2_LOW_UTILIZATION", "UTILIZATION", "Instance may be overprovisioned")
     if metrics_status != "ok":
-        return ev.unavailable("CloudWatch CPU metrics", "error", "cloudwatch:GetMetricData")
+        return ev.unavailable("CloudWatch CPU metrics", "error", "cloudwatch:GetMetricStatistics")
     state = (instance.get("State") or {}).get("Name")
     if state != "running":
         ev.cite("ec2:DescribeInstances", "Instance state is %s." % state)
