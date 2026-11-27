@@ -18,11 +18,11 @@ from typing import Any, Dict, Iterable, List, Optional
 
 __all__ = [
     "IaCPlanError",
+    "infracost_status",
     "load_infracost_file",
     "load_plan_file",
     "normalize_infracost",
     "parse_plan",
-    "infracost_status",
 ]
 
 
@@ -296,9 +296,8 @@ def normalize_infracost(report: Any) -> Dict:
         currency = diff.get("currency") or currency
         change = _to_float(_first_value(diff, "monthly_cost_change", "totalMonthlyCost"))
         before = _to_float(_first_value(diff, "totalMonthlyCostBefore", "total_monthly_cost_before"))
-        if change is None and before is None:
-            if not resources:
-                return {"status": "not_configured", "detail": "Infracost diff contained no cost data."}
+        if change is None and before is None and not resources:
+            return {"status": "not_configured", "detail": "Infracost diff contained no cost data."}
         planned = None
         if before is not None and change is not None:
             planned = round(before + change, 2)

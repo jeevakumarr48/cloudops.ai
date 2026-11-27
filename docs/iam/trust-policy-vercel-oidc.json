@@ -1,0 +1,19 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudOpsAIFromVercelProduction",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/oidc.vercel.com/TEAM_SLUG"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.vercel.com/TEAM_SLUG:aud": "https://vercel.com/TEAM_SLUG",
+          "oidc.vercel.com/TEAM_SLUG:sub": "owner:TEAM_SLUG:project:API_PROJECT_NAME:environment:production"
+        }
+      }
+    }
+  ]
+}

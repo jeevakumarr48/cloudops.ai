@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Boxes, Cloud, Cog, FileCode2, LayoutDashboard, ShieldCheck, X } from 'lucide-react'
+import { Activity, BarChart3, Bot, Boxes, Cloud, Cog, FileCode2, LayoutDashboard, Lightbulb, LockKeyhole, ShieldCheck, X } from 'lucide-react'
 import StatusPill from './ui/StatusPill'
 
 const navigation = [
@@ -8,6 +8,9 @@ const navigation = [
   ['AI Insights', Bot],
   ['IaC Review', FileCode2],
   ['Governance', ShieldCheck],
+  ['Recommendations', Lightbulb],
+  ['Security', LockKeyhole],
+  ['Operations', Activity],
   ['Settings', Cog],
 ]
 
@@ -33,7 +36,7 @@ function Sidebar({ activePage, onNavigate, open, onClose }) {
           </button>
         ))}
       </nav>
-      <div className="sidebar-footer"><StatusPill tone="warn">Backend data connection pending</StatusPill></div>
+      <div className="sidebar-footer"><StatusPill tone="neutral" title="CloudOps AI only reads AWS data and never changes infrastructure">Read-only access</StatusPill></div>
     </aside>
   )
 }

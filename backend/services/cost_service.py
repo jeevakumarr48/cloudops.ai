@@ -8,30 +8,39 @@ explicit ``available: false`` forecast state.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 from botocore.exceptions import BotoCoreError, ClientError
 
 from aws_client import COST_EXPLORER_REGION, create_cost_explorer_client
+from services import cost_store
 
 __all__ = [
-    "CostServiceError",
     "SUPPORTED_PERIODS",
-    "get_cost_summary",
+    "CostServiceError",
     "get_cost_forecast",
+    "get_cost_summary",
 ]
 
 SUPPORTED_PERIODS = ("daily", "monthly")
 
-# Short-lived cache to avoid repeated Cost Explorer calls (CE bills per
-# request). 15 minutes is short enough to stay fresh and long enough to keep
-# the dashboard from hammering the API.
-_CACHE_TTL_SECONDS = 900
+# Cache to avoid repeated Cost Explorer calls: CE bills $0.01 per request and
+# AWS refreshes billing data only a few times a day, so a 24-hour default keeps
+# the whole project inside its $1/month budget. Override with
+# CLOUDOPS_COST_CACHE_SECONDS. This cache is per process; Vercel's CDN cache
+# (see main.py) shares results across instances.
+_CACHE_TTL_SECONDS = int(os.environ.get("CLOUDOPS_COST_CACHE_SECONDS", "86400"))
 _cache: Dict[tuple, Tuple[float, Dict]] = {}
 _cache_lock = threading.Lock()
+# One lock per cache key so concurrent requests for the same data (the
+# dashboard requests /api/overview and /api/costs together) make one billed
+# Cost Explorer call instead of two.
+_key_locks: Dict[tuple, threading.Lock] = {}
 
 _DENIED_CODES = {
     "AccessDeniedException",
@@ -82,6 +91,43 @@ def _cache_set(key: tuple, value: Dict) -> None:
         _cache[key] = (time.time() + _CACHE_TTL_SECONDS, value)
 
 
+@contextmanager
+def _single_flight(key: tuple):
+    with _cache_lock:
+        lock = _key_locks.setdefault(key, threading.Lock())
+    with lock:
+        yield
+
+
+BUDGET_EXHAUSTED_MESSAGE = (
+    "The monthly Cost Explorer request budget for this deployment has been "
+    "reached and no earlier cost data is stored."
+)
+
+
+def _shared_fetch(cache_key: tuple, kind: str, params_key: str, fetch) -> Dict:
+    """Serve from the shared store, else spend one budgeted CE request.
+
+    Order: database snapshot for today -> billed request if under the
+    monthly cap -> most recent real snapshot -> clean error. Must be called
+    while holding the key's single-flight lock.
+    """
+    today = cache_key[-1]
+    stored = cost_store.load(kind, params_key, today)
+    if stored is not None:
+        _cache_set(cache_key, stored)
+        return stored
+    if not cost_store.consume_budget(today):
+        previous = cost_store.latest(kind, params_key)
+        if previous is not None:
+            _cache_set(cache_key, previous)
+            return previous
+        raise CostServiceError(BUDGET_EXHAUSTED_MESSAGE)
+    result = fetch()
+    cost_store.save(kind, params_key, today, result)
+    return result
+
+
 def _normalize_period(period: str) -> str:
     normalized = (period or "monthly").strip().lower()
     if normalized not in SUPPORTED_PERIODS:
@@ -104,11 +150,32 @@ def get_cost_summary(
     Pagination is followed via ``NextPageToken``.
     """
     normalized_period = _normalize_period(period)
-    cache_key = ("summary", normalized_period, bool(group_by_service), region_name)
+    # The UTC date is part of the key so a cached month never crosses midnight
+    # into the next billing day or month.
+    cache_key = ("summary", normalized_period, bool(group_by_service), region_name, _today_utc())
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
+    with _single_flight(cache_key):
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+        return _shared_fetch(
+            cache_key,
+            "cost_summary",
+            "%s:%s:%s" % (normalized_period, bool(group_by_service), region_name),
+            lambda: _fetch_cost_summary(
+                normalized_period, group_by_service, region_name, cache_key
+            ),
+        )
 
+
+def _fetch_cost_summary(
+    normalized_period: str,
+    group_by_service: bool,
+    region_name: Optional[str],
+    cache_key: tuple,
+) -> Dict:
     start, end_exclusive, granularity = _time_period(normalized_period)
     request: Dict = {
         "TimePeriod": {"Start": start.isoformat(), "End": end_exclusive.isoformat()},
@@ -119,6 +186,9 @@ def get_cost_summary(
         request["GroupBy"] = [{"Type": "DIMENSION", "Key": "SERVICE"}]
 
     service_totals: Dict[str, float] = {}
+    # Daily period only: the per-day series AWS already returns, kept so the
+    # governance engine can compare weeks without another billed request.
+    day_totals: Dict[str, Dict[str, float]] = {}
     total = 0.0
     currency = "USD"
 
@@ -132,6 +202,8 @@ def get_cost_summary(
             response = client.get_cost_and_usage(**call)
 
             for bucket in response.get("ResultsByTime", []):
+                day = (bucket.get("TimePeriod") or {}).get("Start")
+                day_services = day_totals.setdefault(day, {}) if day else {}
                 if group_by_service:
                     for group in bucket.get("Groups", []):
                         keys = group.get("Keys") or []
@@ -140,11 +212,13 @@ def get_cost_summary(
                         value = float(amount.get("Amount", 0) or 0)
                         currency = amount.get("Unit", currency)
                         service_totals[name] = service_totals.get(name, 0.0) + value
+                        day_services[name] = day_services.get(name, 0.0) + value
                         total += value
                 else:
                     amount = bucket.get("Total", {}).get("UnblendedCost", {})
                     value = float(amount.get("Amount", 0) or 0)
                     currency = amount.get("Unit", currency)
+                    day_services["Total"] = day_services.get("Total", 0.0) + value
                     total += value
 
             next_token = response.get("NextPageToken")
@@ -176,6 +250,15 @@ def get_cost_summary(
         "end_inclusive": (end_exclusive - timedelta(days=1)).isoformat(),
         "services": services,
     }
+    if normalized_period == "daily":
+        result["daily"] = [
+            {
+                "date": day,
+                "total": round(sum(values.values()), 4),
+                "services": {name: round(value, 4) for name, value in values.items() if value},
+            }
+            for day, values in sorted(day_totals.items())
+        ]
     _cache_set(cache_key, result)
     return result
 
@@ -191,11 +274,25 @@ def get_cost_forecast(
     a fabricated number.
     """
     normalized_period = _normalize_period(period)
-    cache_key = ("forecast", normalized_period, region_name)
+    cache_key = ("forecast", normalized_period, region_name, _today_utc())
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
+    with _single_flight(cache_key):
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+        return _shared_fetch(
+            cache_key,
+            "cost_forecast",
+            "%s:%s" % (normalized_period, region_name),
+            lambda: _fetch_cost_forecast(normalized_period, region_name, cache_key),
+        )
 
+
+def _fetch_cost_forecast(
+    normalized_period: str, region_name: Optional[str], cache_key: tuple
+) -> Dict:
     today = _today_utc()
     start = today + timedelta(days=1)
     end = start + timedelta(days=31) if normalized_period == "daily" else start + timedelta(days=62)

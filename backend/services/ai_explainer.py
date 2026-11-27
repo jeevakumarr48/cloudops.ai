@@ -13,13 +13,24 @@ findings; nothing is fabricated.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import threading
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional
 
-__all__ = ["explain_findings", "build_fallback_explanation"]
+__all__ = ["build_fallback_explanation", "explain_findings"]
+
+# LLM explanations are reused while the findings are unchanged, so a
+# dashboard refresh never triggers a new provider call. Deterministic
+# explanations are cheap and are not cached.
+_LLM_CACHE_TTL_SECONDS = int(os.environ.get("CLOUDOPS_AI_CACHE_SECONDS", "3600"))
+_llm_cache: Dict[str, Any] = {}
+_llm_cache_lock = threading.Lock()
 
 _RISK_BY_SEVERITY = {"high": "High", "medium": "Medium", "low": "Low"}
 
@@ -103,7 +114,7 @@ def _call_llm(config: Dict[str, str], findings: List[Dict]) -> Dict:
         }
     ).encode("utf-8")
 
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # noqa: S310 - scheme checked before opening
         config["base_url"].rstrip("/") + "/chat/completions",
         data=payload,
         headers={
@@ -112,7 +123,9 @@ def _call_llm(config: Dict[str, str], findings: List[Dict]) -> Dict:
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=25) as response:
+    if urllib.parse.urlsplit(request.full_url).scheme not in ("http", "https"):
+        raise ValueError("CLOUDOPS_AI_BASE_URL must be an http or https URL.")
+    with urllib.request.urlopen(request, timeout=25) as response:  # noqa: S310 - scheme checked above
         body = json.loads(response.read().decode("utf-8"))
     content = body["choices"][0]["message"]["content"]
     return json.loads(content)
@@ -158,9 +171,25 @@ def explain_findings(findings: Optional[List[Dict]]) -> Dict:
     config = _provider_config()
     if not config:
         return build_fallback_explanation(findings)
+    key = hashlib.sha256(
+        json.dumps(
+            {"model": config["model"], "base_url": config["base_url"], "findings": findings},
+            sort_keys=True,
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+    now = time.time()
+    with _llm_cache_lock:
+        entry = _llm_cache.get(key)
+        if entry is not None and entry[0] > now:
+            return json.loads(json.dumps(entry[1]))
     try:
         result = _call_llm(config, findings)
-        return _normalize_llm_result(result, findings)
+        explanation = _normalize_llm_result(result, findings)
+        if explanation.get("source") == "llm" and _LLM_CACHE_TTL_SECONDS > 0:
+            with _llm_cache_lock:
+                _llm_cache[key] = (time.time() + _LLM_CACHE_TTL_SECONDS, explanation)
+        return explanation
     except (urllib.error.URLError, KeyError, ValueError, TypeError, json.JSONDecodeError):
         fallback = build_fallback_explanation(findings)
         fallback["source"] = "deterministic_fallback"

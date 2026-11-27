@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+*.sqlite3
+*.db
+.env
+.env.*
+!.env.example
+.venv/
+tests/
+eval-report.json

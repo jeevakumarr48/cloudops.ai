@@ -3,12 +3,64 @@
 # duplicated.
 [project]
 name = "cloudops-ai-backend"
-version = "0.1.0"
+version = "1.0.0"
 requires-python = ">=3.12"
-dependencies = ["fastapi", "boto3"]
+dependencies = [
+  "fastapi",
+  "boto3",
+  "sqlalchemy>=2.0,<3",
+  "alembic>=1.13,<2",
+  "argon2-cffi>=23.1",
+  "psycopg[binary]>=3.2,<4",
+]
 
 [tool.uv]
 package = false
 
 [tool.vercel]
 entrypoint = "main:app"
+
+# --- Quality gates (CI runs these; see .github/workflows/cloudops-check.yml) ---
+
+[tool.ruff]
+line-length = 150
+target-version = "py312"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle, isort, bugbear, bandit (security), blind-except,
+# simplify, comprehensions and ruff's own checks.
+select = ["E", "F", "W", "I", "B", "S", "BLE", "SIM", "C4", "RUF"]
+# B008: FastAPI's Depends()/Query() in defaults is the framework's idiom.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108"]
+"evals/**" = ["S101", "E501"]
+# Rule prose is data; wrapping it would hurt readability.
+"services/recommendations/templates.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+# Application code only; tests use loose fixtures on purpose.
+exclude = ["^tests/", "^migrations/", "^test_aws\\.py$", "^test_cost\\.py$", "^app\\.py$"]
+# Type debt: older discovery and rule modules predate type checking and lean on
+# dict.get() returning Optional. They are excluded until they are annotated;
+# everything else (core, routers, recommendations, demo, governance engine) is checked.
+[[tool.mypy.overrides]]
+module = ["aws_client", "services.decision_engine", "services.iac_governance", "services.s3_governance",
+          "services.s3_discovery", "services.rds_discovery", "services.ec2_governance"]
+ignore_errors = true
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", "migrations/*", "test_*.py", "app.py"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = false
+skip_covered = true

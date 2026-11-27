@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+# The token comes from the environment: export VERCEL_API_TOKEN=...
+team             = "your-team-slug"
+web_project_name = "cloudops-ai"
+api_project_name = "cloudops-ai-api"
+github_repo      = "jeevakumarr48/cloudops.ai"
+
+# From `terraform -chdir=../aws output -raw role_arn`
+# aws_role_arn = "arn:aws:iam::123456789012:role/cloudops-ai-readonly"
+
+web_origins     = ["https://cloudops-ai-roan.vercel.app"]
+operator_emails = ["you@example.com"]

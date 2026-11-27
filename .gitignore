@@ -27,7 +27,21 @@ terraform.tfstate.*
 tfplan
 *.tfplan
 plan.json
+terraform.tfvars
+*.auto.tfvars
+crash.log
 
 # Local tooling
 .vscode/
 .DS_Store
+
+# Local SQLite database
+*.db
+*.db-journal
+eval-report.json
+backend/e2e.sqlite3
+
+# Coverage data
+.coverage
+coverage.xml
+backend/dev.sqlite3

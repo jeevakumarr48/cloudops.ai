@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
+from services.decision_engine import analyze_iac_changes
 from services.iac_analyzer import (
     IaCPlanError,
-    load_infracost_file,
     infracost_status,
+    load_infracost_file,
     load_plan_file,
     normalize_infracost,
     parse_plan,
 )
-from services.decision_engine import analyze_iac_changes
 
 
 def plan_with(actions, resource_type="aws_instance", address="aws_instance.app"):
