@@ -82,7 +82,7 @@ Missing permissions are reported per check as `DATA_UNAVAILABLE`; nothing breaks
 | Item | Guardrail | Worst case |
 | --- | --- | --- |
 | Cost Explorer ($0.01/request) | 24h cache, edge cache, DB-shared snapshots, hard monthly cap 75 | $0.75 |
-| CloudWatch GetMetricData | 60s discovery cache, 60s shared scan, 15-min S3/RDS caches, no polling | cents |
+| CloudWatch GetMetricStatistics (free tier: 1M API requests/month) | one call per metric, 60s discovery cache, 60s shared scan, 15-min S3/RDS caches, no polling | $0 |
 | S3 config reads (GET-class) | 15-min cache, 60s refresh cooldown | well under $0.01 |
 | AI provider | off by default; user-triggered; 10 findings per run; 20 calls/day; cached per evidence | $0 (Ollama/none) |
 | Vercel Hobby, Neon Free, GitHub Actions | free tiers; Vercel and Neon pause instead of billing | $0 |

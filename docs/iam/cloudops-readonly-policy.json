@@ -7,7 +7,7 @@
       "Action": [
         "ec2:DescribeInstances",
         "ec2:DescribeSecurityGroups",
-        "cloudwatch:GetMetricData"
+        "cloudwatch:GetMetricStatistics"
       ],
       "Resource": "*"
     },

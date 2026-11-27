@@ -91,12 +91,43 @@ def test_discovers_regions_and_configuration(aws):
     assert alpha["lifecycle"]["status"] == "not_configured"
 
 
-def test_missing_metrics_are_null_not_zero(aws):
+def no_datapoints(monkeypatch):
+    """moto synthesises S3 storage metrics for every bucket; real AWS does not
+    report new or empty buckets, so tests of that case return no datapoints."""
+    monkeypatch.setattr(
+        s3_discovery, "metric_series",
+        lambda client, namespace, metric, dims, stats, *args: {stat: [] for stat in stats},
+    )
+
+
+def test_missing_metrics_are_null_not_zero(aws, monkeypatch):
+    no_datapoints(monkeypatch)
     aws.create_bucket(Bucket="alpha-bucket")
     metrics = s3_discovery.discover_s3_buckets()["buckets"][0]["metrics"]
     assert metrics["status"] == "no_data"
     assert metrics["standard_storage_bytes"] is None and metrics["object_count"] is None
     assert "does not mean zero" in metrics["note"]
+
+
+def test_storage_metrics_use_get_metric_statistics(aws):
+    aws.create_bucket(Bucket="alpha-bucket")
+    aws.put_object(Bucket="alpha-bucket", Key="a.txt", Body=b"hello")
+    metrics = s3_discovery.discover_s3_buckets()["buckets"][0]["metrics"]
+    assert metrics["status"] == "ok"
+    assert metrics["object_count"] == 1
+    assert isinstance(metrics["standard_storage_bytes"], int) and metrics["standard_storage_bytes"] > 0
+    assert metrics["as_of"]
+
+
+def test_storage_metrics_denied_is_access_denied(aws, monkeypatch):
+    def denied(*args, **kwargs):
+        raise ClientError({"Error": {"Code": "AccessDenied"}}, "GetMetricStatistics")
+
+    monkeypatch.setattr(s3_discovery, "metric_series", denied)
+    aws.create_bucket(Bucket="alpha-bucket")
+    metrics = s3_discovery.discover_s3_buckets()["buckets"][0]["metrics"]
+    assert metrics["status"] == "access_denied"
+    assert metrics["standard_storage_bytes"] is None and metrics["object_count"] is None
 
 
 def test_results_are_cached_and_refresh_has_cooldown(aws):
@@ -198,7 +229,8 @@ def test_missing_encryption_is_confirmed(aws):
     assert finding["evidence_state"] == CONFIRMED and finding["severity"] == "MEDIUM"
 
 
-def test_lifecycle_unknown_size_is_insufficient_evidence(aws):
+def test_lifecycle_unknown_size_is_insufficient_evidence(aws, monkeypatch):
+    no_datapoints(monkeypatch)
     aws.create_bucket(Bucket="data-bucket")
     finding = evaluate("data-bucket")["S3_LIFECYCLE"]
     assert finding["evidence_state"] == INSUFFICIENT_EVIDENCE

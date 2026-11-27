@@ -86,7 +86,7 @@ sequenceDiagram
     A->>S: AssumeRoleWithWebIdentity (Vercel OIDC token)
     S-->>A: one-hour credentials (cached)
     par each source isolated
-        A->>W: ec2:Describe*, cloudwatch:GetMetricData
+        A->>W: ec2:Describe*, cloudwatch:GetMetricStatistics
         A->>W: s3:GetBucket* (configuration only, never objects)
         A->>W: rds:DescribeDBInstances
         A->>D: cached Cost Explorer result (budgeted)

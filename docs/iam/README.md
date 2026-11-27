@@ -9,9 +9,11 @@ permissions do not break the app: each check reports `access_denied` and the
 related governance rule reports `DATA_UNAVAILABLE` naming the action to grant.
 
 Billed calls: `ce:GetCostAndUsage` and `ce:GetCostForecast` ($0.01 each, capped by
-`CLOUDOPS_CE_MONTHLY_CALL_LIMIT`), `cloudwatch:GetMetricData` (about $0.01 per
-1,000 metrics) and S3 bucket configuration reads (GET-class requests, about
-$0.0004 per 1,000). The rest are free.
+`CLOUDOPS_CE_MONTHLY_CALL_LIMIT`) and S3 bucket configuration reads (GET-class
+requests, about $0.0004 per 1,000). The rest are free: CloudWatch metrics are
+read with `cloudwatch:GetMetricStatistics`, which is covered by CloudWatch's
+free tier of 1 million API requests a month (`GetMetricData` is not, so the
+backend does not call it).
 
 ## Credentials: prefer a role, ideally with no stored keys
 

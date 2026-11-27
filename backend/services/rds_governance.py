@@ -197,7 +197,7 @@ def _rule_utilization(db) -> Dict:
     ev = _ev(db, "RDS_LOW_UTILIZATION", "UTILIZATION", "Database may be overprovisioned")
     metrics = db.get("metrics") or {}
     if metrics.get("status") in ("access_denied", "error"):
-        return ev.unavailable("CloudWatch metrics", metrics.get("status"), "cloudwatch:GetMetricData")
+        return ev.unavailable("CloudWatch metrics", metrics.get("status"), "cloudwatch:GetMetricStatistics")
     if db.get("status") != "available":
         ev.cite("rds:DescribeDBInstances", "Instance status is %s." % db.get("status"))
         return ev.result(INSUFFICIENT_EVIDENCE, "INFO", "Utilization is only judged for running databases.", confidence="low")
@@ -259,7 +259,7 @@ def _rule_storage(db) -> Dict:
     ev = _ev(db, "RDS_STORAGE_HEADROOM", "STORAGE", "Storage headroom needs attention")
     metrics = db.get("metrics") or {}
     if metrics.get("status") in ("access_denied", "error"):
-        return ev.unavailable("CloudWatch metrics", metrics.get("status"), "cloudwatch:GetMetricData")
+        return ev.unavailable("CloudWatch metrics", metrics.get("status"), "cloudwatch:GetMetricStatistics")
     allocated = db.get("allocated_storage_gib")
     free = metrics.get("free_storage_bytes_latest")
     if _is_aurora(db):
