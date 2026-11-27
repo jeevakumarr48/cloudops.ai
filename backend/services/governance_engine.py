@@ -38,7 +38,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from aws_client import AWSAccessError, create_ec2_client, discover_ec2_instances
 from core.database import DatabaseUnavailable, session_factory
 from core.models import GovernanceFinding, ScanRun, utcnow
-from services import cost_governance, ec2_governance, rds_governance, s3_governance
+from services import cost_governance, ec2_governance, rds_governance, retention, s3_governance
 from services.aws_metrics import MetricsUnavailableError, get_ec2_metrics
 from services.cost_service import CostServiceError, get_cost_summary
 from services.governance_common import (
@@ -246,6 +246,7 @@ def _record_scan(scan: Dict[str, Any], duration_ms: int, finding_count: int, sco
         keep = select(ScanRun.id).where(ScanRun.scope == scope).order_by(ScanRun.started_at.desc()).limit(SCAN_HISTORY)
         db.execute(delete(ScanRun).where(ScanRun.scope == scope, ScanRun.id.not_in(keep)))
         db.commit()
+        retention.maybe_prune(db)
     except SQLAlchemyError:
         db.rollback()
         logger.warning("Scan history could not be saved.")

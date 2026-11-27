@@ -86,6 +86,8 @@ Missing permissions are reported per check as `DATA_UNAVAILABLE`; nothing breaks
 | S3 config reads (GET-class) | 15-min cache, 60s refresh cooldown | well under $0.01 |
 | AI provider | off by default; user-triggered; 10 findings per run; 20 calls/day; cached per evidence | $0 (Ollama/none) |
 | Vercel Hobby, Neon Free, GitHub Actions | free tiers; Vercel and Neon pause instead of billing | $0 |
+| Neon storage | daily retention job, scan history capped at 200 rows, account cap (`CLOUDOPS_MAX_USERS`) | a few MB, $0 |
+| Neon compute | no polling; demo mode and `/health` never touch the DB; compute sleeps when idle; Free never bills | $0 |
 | STS (role/OIDC) | free | $0 |
 | IAM role, policy, OIDC provider (`infra/terraform`) | free | $0 |
 

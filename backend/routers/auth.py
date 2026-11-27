@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,7 @@ from core.security import (
     short_hash,
     verify_password,
 )
+from services import retention
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -72,6 +73,12 @@ def register(
     ip = short_hash(client_ip(request))
     if not consume(db, "register:ip:%s" % ip, REGISTRATIONS_PER_IP, REGISTRATION_WINDOW_SECONDS):
         raise HTTPException(status_code=429, detail=_TOO_MANY)
+    # Keeps a public deployment inside the free database tier. Operators can
+    # always register, so a full deployment never locks out its owner.
+    if body.email not in config.operator_emails() and (
+        db.scalar(select(func.count()).select_from(User)) or 0
+    ) >= config.max_users():
+        raise HTTPException(status_code=403, detail="This deployment has reached its account limit.")
 
     user = User(
         email=body.email,
@@ -119,6 +126,7 @@ def login(body: LoginRequest, request: Request, response: Response, db: Session 
     audit(db, "user.login", request=request, user_id=user.id)
     token = create_session(db, user)
     db.commit()
+    retention.maybe_prune(db)
     _set_session_cookie(response, token)
     return _me(db, user)
 

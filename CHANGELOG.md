@@ -5,6 +5,17 @@ All notable changes to CloudOps AI. The format follows
 [Semantic Versioning](https://semver.org/). The public API (paths and response
 fields under `/api`) is the versioned surface.
 
+## [Unreleased]
+
+### Added
+
+- **Daily retention job.** Prunes expired or revoked sessions (after 7
+  days), usage counters and snapshots older than 40 days, and audit events
+  older than 180 days, so the database stays inside Neon's free tier. Runs
+  at most once a day, on sign-in or after a scan, and never fails a request.
+- **`CLOUDOPS_MAX_USERS`.** Cap on registered accounts (default 100);
+  operator emails can always register.
+
 ## [1.0.0] - 2026-11-26
 
 First release as a governance platform. Everything stays read-only: no AWS

@@ -153,6 +153,7 @@ Copy `backend/.env.example` and `frontend/.env.example` to local environment fil
 | `CLOUDOPS_PUBLIC_SECURITY_FINDINGS` | No | `true` serves S3 findings anonymously (demo accounts only); default `false` |
 | `CLOUDOPS_S3_CACHE_SECONDS` | No | S3 scan cache lifetime, default 900 |
 | `CLOUDOPS_CE_MONTHLY_CALL_LIMIT` | No | Hard monthly cap on billed Cost Explorer requests, default 75 ($0.75) |
+| `CLOUDOPS_MAX_USERS` | No | Cap on registered accounts, default 100; operator emails are always allowed |
 | `CLOUDOPS_MAX_BODY_BYTES` | No | Largest request body accepted, default 2000000 (2 MB); larger requests get 413 |
 
 ## S3 discovery and governance

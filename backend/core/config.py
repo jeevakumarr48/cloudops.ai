@@ -75,6 +75,19 @@ def max_body_bytes() -> int:
     return value if value > 0 else 2_000_000
 
 
+def max_users() -> int:
+    """Cap on registered accounts (CLOUDOPS_MAX_USERS, default 100).
+
+    Each account is a few rows, so the cap is about predictability: with
+    registration open, nobody can grow the database without bound.
+    """
+    try:
+        value = int(os.environ.get("CLOUDOPS_MAX_USERS", "100"))
+    except ValueError:
+        return 100
+    return max(value, 1)
+
+
 def operator_emails() -> set:
     """Emails allowed to view governance data for the deployment's own AWS
     account (as opposed to a workspace's connected account)."""
